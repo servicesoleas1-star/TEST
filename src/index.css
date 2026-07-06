@@ -152,3 +152,15 @@
     animation: none;
   }
 }
+
+/* Used only by the temporary /foldcraft preview page (src/pages/Foldcraft.jsx). */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
