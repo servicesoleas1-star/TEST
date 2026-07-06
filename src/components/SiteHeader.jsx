@@ -21,6 +21,24 @@ const item = {
 };
 
 /**
+ * Just the button for now — no translation system wired up yet (that's a
+ * separate, later piece of work). Clicking it only toggles its own label.
+ */
+function LanguageButton() {
+  const [lang, setLang] = useState('FR');
+  return (
+    <button
+      type="button"
+      onClick={() => setLang((l) => (l === 'FR' ? 'EN' : 'FR'))}
+      aria-label="Changer de langue"
+      className="w-9 h-9 rounded-full border border-ink-200 flex items-center justify-center text-[11px] font-semibold text-ink-700 hover:border-primary hover:text-primary transition-colors"
+    >
+      {lang}
+    </button>
+  );
+}
+
+/**
  * Header for interior pages (Tarifs, Confidentialité, ...) — light, solid
  * white bar with a subtle bottom border, matching the Contact page's design
  * language instead of the homepage's dark hero navbar.
@@ -73,6 +91,9 @@ function SiteHeader({ activeHref }) {
         </motion.ul>
 
         <div className="hidden lg:flex items-center gap-3">
+          <motion.div variants={item}>
+            <LanguageButton />
+          </motion.div>
           <motion.a
             variants={item}
             href="/connexion"
@@ -86,6 +107,9 @@ function SiteHeader({ activeHref }) {
         </div>
 
         <div className="flex lg:hidden items-center gap-1.5">
+          <motion.div variants={item}>
+            <LanguageButton />
+          </motion.div>
           <motion.button
             variants={item}
             onClick={() => setOpen((o) => !o)}
