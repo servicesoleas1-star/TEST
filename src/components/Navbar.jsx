@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { media } from '../config/media';
-import LanguageSwitcher from '../i18n/LanguageSwitcher';
 
 const navLinks = [
   { label: 'Événements', href: '/evenements' },
@@ -95,9 +94,6 @@ function Navbar() {
 
         {/* Desktop actions */}
         <div className="hidden lg:flex items-center gap-3">
-          <motion.div variants={item}>
-            <LanguageSwitcher variant={scrolled ? 'light' : 'dark'} />
-          </motion.div>
           <motion.a
             variants={item}
             href="/connexion"
@@ -117,9 +113,6 @@ function Navbar() {
 
         {/* Mobile actions */}
         <div className="flex lg:hidden items-center gap-1.5">
-          <motion.div variants={item}>
-            <LanguageSwitcher variant={scrolled ? 'light' : 'dark'} />
-          </motion.div>
           <motion.button
             variants={item}
             onClick={() => setOpen(true)}

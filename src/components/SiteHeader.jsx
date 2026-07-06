@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { media } from '../config/media';
-import LanguageSwitcher from '../i18n/LanguageSwitcher';
 
 const navLinks = [
   { label: 'Accueil', href: '/' },
@@ -74,9 +73,6 @@ function SiteHeader({ activeHref }) {
         </motion.ul>
 
         <div className="hidden lg:flex items-center gap-3">
-          <motion.div variants={item}>
-            <LanguageSwitcher />
-          </motion.div>
           <motion.a
             variants={item}
             href="/connexion"
@@ -90,9 +86,6 @@ function SiteHeader({ activeHref }) {
         </div>
 
         <div className="flex lg:hidden items-center gap-1.5">
-          <motion.div variants={item}>
-            <LanguageSwitcher />
-          </motion.div>
           <motion.button
             variants={item}
             onClick={() => setOpen((o) => !o)}

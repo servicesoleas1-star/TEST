@@ -1,13 +1,12 @@
 import React, { useState } from "react";
 import WhatsAppFloatingButton from "../components/WhatsAppFloatingButton.jsx";
-import { getPlatformConfig } from "../config/PlatformConfig.js";
 
 // ---------------------------------------------------------------------------
 // Moledi Events — Page Contact (/contact)
 // Palette dérivée du logo : bleu nuit #1E3A8A, orange #E8651A
 // Le logo doit se trouver dans public/logo-moledi-events.png
-// Le bouton WhatsApp flottant et le numéro support viennent des composants
-// partagés de l'équipe (PlatformConfig.js / WhatsAppFloatingButton.jsx).
+// Le bouton WhatsApp flottant vient du composant partagé de l'équipe
+// (WhatsAppFloatingButton.jsx, backlog LAN-05).
 // ---------------------------------------------------------------------------
 
 const NAVY = "#1E3A8A";
@@ -23,7 +22,9 @@ const SOCIALS_DEFAULT = [
   { key: "x", label: "X", url: "https://x.com/moledievents" },
 ];
 
-const { supportWhatsAppNumber: WHATSAPP_NUMBER } = getPlatformConfig();
+// Support config (backlog: coordonnées de contact) — inlined here since it's
+// only ever read by this page.
+const WHATSAPP_NUMBER = '237697123456'; // Format: country code without +, then phone number
 
 const TRANSLATIONS = {
   fr: {
