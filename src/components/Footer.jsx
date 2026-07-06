@@ -76,7 +76,7 @@ function Footer() {
       >
         <img src={media.logo} alt="Moledi Event" className="h-6 sm:h-8 w-auto shrink-0" />
         <p className="text-ink-900 text-xs sm:text-base font-semibold whitespace-nowrap truncate">
-          De l'idée à l'événement, EN
+          De l'idée à l'événement, en
         </p>
         <a href="/inscription" className="btn btn-primary shrink-0 !px-4 sm:!px-6 !text-xs sm:!text-sm whitespace-nowrap">
           Un seul clic

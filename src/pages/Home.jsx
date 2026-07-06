@@ -10,30 +10,51 @@ gsap.registerPlugin(ScrollTrigger);
 
 
 // --- Couverture géographique (backlog LAN-01, section Coverage) ---
-// Shaped on UML DC-08 `CountryConfig` (country_code, country_name, active,
-// currency, methods_available). The aggregator module feeds this table in
-// production; swapping to a real `from('country_config')` query changes
-// nothing in the UI below.
-const countryConfigs = [
-  { country_code: 'SN', country_name: 'Sénégal', active: true, currency: 'XOF', methods_available: ['MOBILE_MONEY', 'CARD', 'PAYPAL'] },
-  { country_code: 'CI', country_name: "Côte d'Ivoire", active: true, currency: 'XOF', methods_available: ['MOBILE_MONEY', 'CARD', 'PAYPAL'] },
-  { country_code: 'CM', country_name: 'Cameroun', active: true, currency: 'XAF', methods_available: ['MOBILE_MONEY', 'CARD'] },
-  { country_code: 'ML', country_name: 'Mali', active: true, currency: 'XOF', methods_available: ['MOBILE_MONEY', 'CARD'] },
-  { country_code: 'BJ', country_name: 'Bénin', active: true, currency: 'XOF', methods_available: ['MOBILE_MONEY', 'CARD'] },
-  { country_code: 'TG', country_name: 'Togo', active: true, currency: 'XOF', methods_available: ['MOBILE_MONEY', 'CARD'] },
-  { country_code: 'BF', country_name: 'Burkina Faso', active: true, currency: 'XOF', methods_available: ['MOBILE_MONEY'] },
-  { country_code: 'NE', country_name: 'Niger', active: true, currency: 'XOF', methods_available: ['MOBILE_MONEY'] },
-  { country_code: 'GN', country_name: 'Guinée', active: true, currency: 'GNF', methods_available: ['MOBILE_MONEY', 'CARD'] },
-  { country_code: 'GA', country_name: 'Gabon', active: true, currency: 'XAF', methods_available: ['MOBILE_MONEY', 'CARD'] },
-  { country_code: 'CG', country_name: 'Congo', active: true, currency: 'XAF', methods_available: ['MOBILE_MONEY'] },
-  { country_code: 'CD', country_name: 'RD Congo', active: true, currency: 'CDF', methods_available: ['MOBILE_MONEY', 'CARD'] },
-  { country_code: 'TD', country_name: 'Tchad', active: true, currency: 'XAF', methods_available: ['MOBILE_MONEY'] },
-  { country_code: 'MG', country_name: 'Madagascar', active: true, currency: 'MGA', methods_available: ['MOBILE_MONEY', 'CARD'] },
-  { country_code: 'RW', country_name: 'Rwanda', active: true, currency: 'RWF', methods_available: ['MOBILE_MONEY', 'CARD'] },
-  { country_code: 'MR', country_name: 'Mauritanie', active: true, currency: 'MRU', methods_available: ['MOBILE_MONEY'] },
-  { country_code: 'DJ', country_name: 'Djibouti', active: true, currency: 'DJF', methods_available: ['MOBILE_MONEY'] },
-  { country_code: 'KM', country_name: 'Comores', active: true, currency: 'KMF', methods_available: ['MOBILE_MONEY'] },
-];
+// Same pattern as Tarifs: countries and payment methods are read live from
+// `/api/countries` / `/api/payment-methods` (the real CountryConfig /
+// Aggregator tables), not a hardcoded list. Empty table = empty strip,
+// nothing invented client-side.
+function useCountries() {
+  const [countries, setCountries] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/countries')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setCountries(data.ok ? data.countries : []);
+      })
+      .catch(() => {
+        if (!cancelled) setCountries([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { countries };
+}
+
+function usePaymentMethods() {
+  const [methods, setMethods] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/payment-methods')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setMethods(data.ok ? data.methods : []);
+      })
+      .catch(() => {
+        if (!cancelled) setMethods([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { methods };
+}
 
 // --- Les 6 univers Moledi Event (backlog LAN-01, ZUIHubStory) ---
 /**
@@ -352,15 +373,15 @@ gsap.registerPlugin(ScrollTrigger);
 // the whole thing. A hard refresh is the only way to see it again.
 const DONE_KEY = 'moledi_zui_done';
 
-const BLOCK_W = 520;
-const BLOCK_H = 660;
+const BLOCK_W = 640;
+const BLOCK_H = 780;
 // Wide ellipse rather than a circle: on a wide desktop viewport the height
 // (navbar-minus-viewport) is always the tighter constraint, so a circular
 // orbit left huge unused margins left/right. Stretching horizontally and
 // compressing vertically lets the whole story fill far more of a wide
 // screen while still resolving to the same "6 blocks in a ring" layout.
-const ORBIT_RX = 1300;
-const ORBIT_RY = 700;
+const ORBIT_RX = 1520;
+const ORBIT_RY = 840;
 const ANGLES = [-90, -30, 30, 90, 150, 210];
 const RING_COLORS = ['#FF6A00', '#2B6BFF', '#FF6A00', '#2B6BFF', '#FF6A00', '#2B6BFF'];
 
@@ -379,15 +400,16 @@ const positions = positionsFor(universes.length);
 // deliberate dwell at zoom-1 in the middle of a flight: the camera parks on
 // the block for a beat — long enough to read its title/description — before
 // diving on into zoom-2.
-const T = { in: 1.3, hold: 0.5, deepen: 0.95, surface: 0.7, out: 0.85 };
+const T = { in: 1.7, hold: 0.9, deepen: 1.2, surface: 1.1, out: 1.3 };
 
 // Real seconds for each clip. Simple pause-per-block pacing, like a video
 // you scroll to play/pause: one scroll takes you from the overview into a
 // block's zoom-1 then all the way into its zoom-2, where it PAUSES. The
 // next scroll resumes — dézooms back to the overview and dives into the
 // next block, pausing again at its zoom-2. No speed-up, no "turbo": every
-// clip always plays at its own natural pace.
-const STEP_DURATION = { inDeep: 3.4, next: 4.6, out: 1.8 };
+// clip always plays at its own natural pace — slow and cinematic, like a
+// film reel, never a snap-cut.
+const STEP_DURATION = { inDeep: 4.4, next: 6.2, out: 3.2, finale: 3.6 };
 const STEP_EASE = 'power2.inOut';
 
 // One camera easing curve for every block — kept uniform on purpose so the
@@ -462,8 +484,11 @@ function ZUIHubStory() {
         (usableH * 0.94) / (maxY * 2)
       );
       const mobile = viewportW < 768;
-      const ZOOM_1 = mobile ? Math.min(1, (viewportW * 0.88) / BLOCK_W) : 1;
-      const ZOOM_2 = ZOOM_1 * 1.4;
+      // Always clamp to the viewport (not just on mobile) so a bigger
+      // BLOCK_W never overflows a narrower desktop/tablet window — on wide
+      // screens this resolves to 1 exactly as before, no regression there.
+      const ZOOM_1 = Math.min(1, (viewportW * 0.92) / BLOCK_W);
+      const ZOOM_2 = ZOOM_1 * 1.45;
       // Push the whole scene down by half the navbar height so the fixed
       // header never overlaps blocks that sit near the top of the canvas.
       const yOffset = navHeight / 2;
@@ -687,33 +712,42 @@ function ZUIHubStory() {
     });
   };
 
-  // "Passer" — fast-forward straight through to the finale (and out the
-  // other side of it), skipping whatever is left of the block-by-block
-  // tour, then mark it done so it never replays this session.
+  // "Passer" — a quick shuffle (not a literal fast-forward through every
+  // remaining block's zoom-in/zoom-out) straight to the overview, then the
+  // finale plays at its normal, full cinematic pace: blocks group up, the
+  // slogan writes itself, then everything fades. Runs every time, even if
+  // the story already reached its resting frame this session.
   const skipToEnd = () => {
     const stops = stopsRef.current;
     const tl = tlRef.current;
     if (!tl || !stops.length) return;
     const last = stops.length - 1;
-    if (currentStepRef.current === last) {
-      markDoneIfFinished(last, stops.length);
-      return;
-    }
+    const overviewFinalIdx = stops.indexOf('overview-final');
+
+    const playFinale = () => {
+      currentStepRef.current = last;
+      tl.tweenTo(stops[last], {
+        duration: STEP_DURATION.finale,
+        ease: STEP_EASE,
+        onComplete: () => {
+          isAnimatingRef.current = false;
+          const st = stRef.current;
+          if (st) {
+            st.scroll(st.end);
+            lastScrollRef.current = st.scroll();
+          }
+          markDoneIfFinished(last, stops.length);
+        },
+      });
+    };
+
     isAnimatingRef.current = true;
-    currentStepRef.current = last;
-    tl.tweenTo(stops[last], {
-      duration: 3.6,
-      ease: 'power2.inOut',
-      onComplete: () => {
-        isAnimatingRef.current = false;
-        const st = stRef.current;
-        if (st) {
-          st.scroll(st.end);
-          lastScrollRef.current = st.scroll();
-        }
-        markDoneIfFinished(last, stops.length);
-      },
-    });
+    if (currentStepRef.current >= overviewFinalIdx) {
+      playFinale();
+    } else {
+      currentStepRef.current = overviewFinalIdx;
+      tl.tweenTo(stops[overviewFinalIdx], { duration: 1, ease: 'power2.inOut', onComplete: playFinale });
+    }
   };
 
   // The whole pin + capture engine is delegated to GSAP's ScrollTrigger —
@@ -857,12 +891,9 @@ function ZUIHubStory() {
 function CenterLogo({ logoRef }) {
   return (
     <div ref={logoRef} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: 0, top: 0, willChange: 'opacity, filter' }}>
-      <div className="relative w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center">
-        <div className="absolute inset-[-20px] rounded-full bg-primary/15 blur-3xl animate-pulse" />
-        <div className="absolute inset-[-8px] rounded-full border border-primary/25 animate-[spin_20s_linear_infinite]" />
-        <div className="relative w-24 h-24 sm:w-30 sm:h-30 rounded-full bg-white shadow-[0_18px_50px_-12px_rgba(255,106,0,0.4)] flex items-center justify-center">
-          <LogoImg />
-        </div>
+      <div className="relative w-44 h-44 sm:w-64 sm:h-64 flex items-center justify-center">
+        <div className="absolute inset-[-30px] rounded-full bg-primary/15 blur-3xl animate-pulse" />
+        <LogoImg />
       </div>
     </div>
   );
@@ -873,7 +904,7 @@ function LogoImg() {
     <img
       src={media.logoMark}
       alt="Moledi Event"
-      className="w-16 h-16 sm:w-20 sm:h-20 object-contain"
+      className="relative w-32 h-32 sm:w-48 sm:h-48 object-contain drop-shadow-[0_18px_40px_rgba(255,106,0,0.35)]"
     />
   );
 }
@@ -1294,21 +1325,19 @@ function RaffleDetail({ univ, steps, tags, trust, color }) {
  */
 
 const TICKETS = [
-  { image: illustration.ticketing, label: 'Billetterie', rotate: -10, z: 1, tone: 'orange' },
-  { image: illustration.votes, label: 'Votes', rotate: 0, z: 3, tone: 'blue' },
-  { image: illustration.crowdfunding, label: 'Cagnottes', rotate: 9, z: 2, tone: 'orange' },
+  { image: illustration.ticketing, rotate: -10, z: 1 },
+  { image: illustration.votes, rotate: 0, z: 3 },
+  { image: illustration.crowdfunding, rotate: 9, z: 2 },
 ];
 
-function Ticket({ image, label, rotate, z, tone, index }) {
+function Ticket({ image, rotate, z, index }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 50, rotate: 0 }}
-      whileInView={{ opacity: 1, y: 0, rotate }}
-      viewport={{ once: true, margin: '-15% 0px' }}
-      transition={{ duration: 0.75, delay: index * 0.14, ease: [0.22, 1, 0.36, 1] }}
+      animate={{ rotate }}
+      transition={{ duration: 0.9, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
       whileHover={{ y: -10, rotate: 0, zIndex: 10 }}
-      style={{ zIndex: z, marginLeft: index === 0 ? 0 : '-4.5rem' }}
-      className="group relative w-48 sm:w-60 lg:w-64 aspect-[3/4.2] rounded-[1.75rem] overflow-hidden border-[6px] border-white shadow-[0_30px_60px_-20px_rgba(11,19,36,0.45)] shrink-0 transition-shadow hover:shadow-[0_36px_70px_-16px_rgba(11,19,36,0.55)]"
+      style={{ zIndex: z, marginLeft: index === 0 ? 0 : '-2.5rem' }}
+      className="group relative w-32 sm:w-52 lg:w-64 aspect-[3/4.2] rounded-[1.75rem] overflow-hidden border-[6px] border-white shadow-[0_30px_60px_-20px_rgba(11,19,36,0.45)] shrink-0 transition-shadow hover:shadow-[0_36px_70px_-16px_rgba(11,19,36,0.55)]"
     >
       <img
         src={image}
@@ -1321,22 +1350,31 @@ function Ticket({ image, label, rotate, z, tone, index }) {
       <div className="absolute inset-x-0 top-8 border-t-2 border-dashed border-white/60" />
       <span className="absolute -left-2.5 top-8 w-5 h-5 rounded-full bg-white -translate-y-1/2" />
       <span className="absolute -right-2.5 top-8 w-5 h-5 rounded-full bg-white -translate-y-1/2" />
-
-      <span
-        className={`absolute bottom-4 left-4 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide rounded-lg px-2.5 py-1.5 text-white ${
-          tone === 'blue' ? 'bg-secondary' : 'bg-primary'
-        }`}
-      >
-        <span className="w-1.5 h-1.5 rounded-full bg-white/80" />
-        {label}
-      </span>
     </motion.div>
   );
 }
 
+/**
+ * Featured events teaser. At rest the three tickets sit stacked tightly
+ * together, centred over the text. As the visitor scrolls through the
+ * section, the tickets glide apart to the left (fanning out to their
+ * final resting positions) while the copy slides out from behind them
+ * to the right — a single scroll-linked reveal instead of three
+ * separate fade-ins, and no ticket ever overlaps the text column since
+ * both sides finish in their own half of the row.
+ */
 function FeaturedMarquee() {
+  const sectionRef = useRef(null);
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ['start 0.75', 'start 0.25'],
+  });
+  const ticketsX = useTransform(scrollYProgress, [0, 1], [90, 0]);
+  const textX = useTransform(scrollYProgress, [0, 1], [-70, 0]);
+  const textOpacity = useTransform(scrollYProgress, [0, 0.6], [0, 1]);
+
   return (
-    <section className="relative py-20 sm:py-28 overflow-hidden">
+    <section ref={sectionRef} className="relative py-20 sm:py-28 overflow-hidden">
       {/* Restrained backdrop glow — orange + light blue only */}
       <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[42rem] h-[42rem] rounded-full bg-primary/5 blur-[120px]" />
       <div className="pointer-events-none absolute top-0 right-0 w-[28rem] h-[28rem] rounded-full bg-secondary/5 blur-[100px]" />
@@ -1344,52 +1382,33 @@ function FeaturedMarquee() {
       <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 lg:gap-16 items-center">
           {/* Ticket fan — order-2 on mobile so the headline reads first */}
-          <div className="order-2 lg:order-1 flex justify-center lg:justify-start pl-8 sm:pl-14 lg:pl-0">
+          <motion.div
+            style={{ x: ticketsX }}
+            className="order-2 lg:order-1 flex justify-center lg:justify-start"
+          >
             {TICKETS.map((t, i) => (
-              <Ticket key={t.label} {...t} index={i} />
+              <Ticket key={i} {...t} index={i} />
             ))}
-          </div>
+          </motion.div>
 
-          <div className="order-1 lg:order-2 text-center lg:text-left">
-            <motion.p
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-15% 0px' }}
-              transition={{ duration: 0.5 }}
-              className="text-primary font-semibold tracking-[0.2em] uppercase text-[10px] mb-2"
-            >
+          <motion.div
+            style={{ x: textX, opacity: textOpacity }}
+            className="order-1 lg:order-2 text-center lg:text-left"
+          >
+            <p className="text-primary font-semibold tracking-[0.2em] uppercase text-[10px] mb-2">
               En ce moment
-            </motion.p>
-            <motion.h2
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-15% 0px' }}
-              transition={{ duration: 0.6, delay: 0.05 }}
-              className="text-3xl sm:text-4xl lg:text-5xl text-ink-900 mb-5"
-            >
+            </p>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl text-ink-900 mb-5">
               Événements en vedette
-            </motion.h2>
-            <motion.p
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-15% 0px' }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="text-ink-700 text-base sm:text-lg normal-case mb-8 max-w-md mx-auto lg:mx-0"
-            >
+            </h2>
+            <p className="text-ink-700 text-base sm:text-lg normal-case mb-8 max-w-md mx-auto lg:mx-0">
               Concerts, votes, cagnottes, projets — de nouveaux événements
               rejoignent la plateforme chaque semaine.
-            </motion.p>
-            <motion.a
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-15% 0px' }}
-              transition={{ duration: 0.6, delay: 0.15 }}
-              href="/evenements"
-              className="btn btn-secondary"
-            >
+            </p>
+            <a href="/evenements" className="btn btn-secondary">
               Découvrir tous les événements
-            </motion.a>
-          </div>
+            </a>
+          </motion.div>
         </div>
       </div>
     </section>
@@ -1439,11 +1458,74 @@ const STEPS = [
   },
 ];
 
+// Concrete examples of what people actually build on Moledi Event, mixed
+// across categories (2 cards per type, never grouped back-to-back) instead
+// of generic customer-quote testimonials — the platform is too young for
+// real quotes, but the range of use cases speaks for itself.
+const SHOWCASE_CARDS = [
+  { image: illustration.votes, text: 'Pour tous vos concours de Miss & Mister' },
+  { image: illustration.donations, text: 'Pour toutes vos collectes de fonds' },
+  { image: illustration.ticketing, text: 'Pour tous vos concerts et spectacles' },
+  { image: illustration.contests, text: 'Pour tous vos jeux-concours' },
+  { image: illustration.crowdfunding, text: 'Pour tous vos projets entrepreneuriaux' },
+  { image: illustration.sponsoring, text: 'Pour tous vos partenariats de marque' },
+  { image: illustration.ticketing, text: 'Pour toutes vos conférences' },
+  { image: illustration.votes, text: 'Pour toutes vos élections associatives' },
+  { image: illustration.sponsoring, text: 'Pour toutes vos recherches de sponsors' },
+  { image: illustration.donations, text: "Pour tous vos appels à la générosité" },
+  { image: illustration.contests, text: 'Pour toutes vos tombolas caritatives' },
+  { image: illustration.crowdfunding, text: 'Pour toutes vos causes créatives' },
+];
+
+function ShowcaseCard({ image, text }) {
+  return (
+    <div className="relative shrink-0 w-56 sm:w-72 aspect-[4/5] rounded-2xl overflow-hidden shadow-[0_20px_45px_-20px_rgba(11,19,36,0.4)]">
+      <img src={image} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+      <div className="absolute inset-0 bg-gradient-to-t from-ink-900/85 via-ink-900/20 to-transparent" />
+      <p className="absolute inset-x-0 bottom-0 p-4 sm:p-5 text-white text-sm sm:text-base font-semibold leading-snug normal-case">
+        {text}
+      </p>
+    </div>
+  );
+}
+
+function ShowcaseMarquee() {
+  const track = [...SHOWCASE_CARDS, ...SHOWCASE_CARDS];
+  return (
+    <section className="py-16 sm:py-24 overflow-hidden">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center mb-10">
+        <p className="text-primary font-semibold tracking-[0.2em] uppercase text-[10px] mb-2">
+          Ils créent avec Moledi Event
+        </p>
+        <h2 className="text-3xl sm:text-5xl text-ink-900">Un événement, mille façons de le vivre</h2>
+      </div>
+
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-16 sm:w-32 bg-gradient-to-r from-white to-transparent z-10" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-16 sm:w-32 bg-gradient-to-l from-white to-transparent z-10" />
+        <motion.div
+          className="flex gap-5 sm:gap-6"
+          animate={{ x: ['0%', '-50%'] }}
+          transition={{ duration: 34, repeat: Infinity, ease: 'linear' }}
+        >
+          {track.map((c, i) => (
+            <ShowcaseCard key={i} {...c} />
+          ))}
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
 function HowTimeline() {
   const rootRef = useRef(null);
   const { scrollYProgress } = useScroll({
     target: rootRef,
-    offset: ['start 0.9', 'end 0.15'],
+    // Finishes filling while the last step is still comfortably on screen
+    // (bottom of the section at 60% down the viewport), instead of waiting
+    // until it's almost scrolled past — that's what made the line look
+    // like it never quite reached the last node.
+    offset: ['start 0.85', 'end 0.6'],
   });
   const lineHeight = useTransform(scrollYProgress, [0, 1], ['0%', '100%']);
 
@@ -1537,26 +1619,11 @@ function Step({ step, index }) {
 
 
 /**
- * Coverage strip — driven by the aggregator module's CountryConfig records
- * (UML DC-08: country_code, country_name, methods_available). A simple,
- * sober left-to-right scroll of country flags + names, and a second strip
- * of the payment operator wordmarks. No currencies, no cards, no clutter.
+ * Coverage strip — same live-data pattern as the Tarifs page: countries
+ * from `/api/countries`, payment operators from `/api/payment-methods`,
+ * rendered as real brand logos (not text labels) with an initials fallback
+ * if a logo fails to load.
  */
-
-// Real payment-method wordmarks — official brand colours + typography,
-// rendered as styled chips (no network image needed).
-const operatorMarks = [
-  { name: 'Orange Money', bg: '#FF7900', fg: '#000000' },
-  { name: 'Wave',          bg: '#1DC4FF', fg: '#001B44' },
-  { name: 'MTN MoMo',      bg: '#FFCB05', fg: '#00256B' },
-  { name: 'Moov Money',    bg: '#F58220', fg: '#FFFFFF' },
-  { name: 'Free Money',    bg: '#E2001A', fg: '#FFFFFF' },
-  { name: 'Airtel Money',  bg: '#ED1C24', fg: '#FFFFFF' },
-  { name: 'Wizall',        bg: '#0072BC', fg: '#FFFFFF' },
-  { name: 'Visa',          bg: '#1A1F71', fg: '#F7B600' },
-  { name: 'Mastercard',    bg: '#111111', fg: '#FF5F00' },
-  { name: 'PayPal',        bg: '#003087', fg: '#009CDE' },
-];
 
 function CountryChip({ c }) {
   return (
@@ -1576,20 +1643,39 @@ function CountryChip({ c }) {
   );
 }
 
-function MethodChip({ m }) {
+function PaymentLogoChip({ m }) {
+  const [failed, setFailed] = useState(!m.logo_url);
+
+  if (failed) {
+    return (
+      <span
+        className="shrink-0 w-14 h-14 rounded-xl flex items-center justify-center font-heading text-xs normal-case tracking-wide text-center leading-tight bg-ink-100 text-ink-900"
+        title={m.operator}
+      >
+        {String(m.operator || '')
+          .split(' ')
+          .map((w) => w[0])
+          .join('')
+          .slice(0, 3)}
+      </span>
+    );
+  }
+
   return (
-    <div
-      className="shrink-0 flex items-center rounded-xl px-6 py-3 font-heading text-sm sm:text-base normal-case tracking-wide"
-      style={{ backgroundColor: m.bg, color: m.fg }}
-      title={m.name}
-    >
-      {m.name}
-    </div>
+    <img
+      src={m.logo_url}
+      alt={m.operator}
+      onError={() => setFailed(true)}
+      className="shrink-0 w-14 h-14 rounded-xl object-contain bg-white border border-ink-200 p-2"
+      loading="lazy"
+    />
   );
 }
 
 function Coverage() {
-  const active = countryConfigs.filter((c) => c.active);
+  const { countries } = useCountries();
+  const { methods } = usePaymentMethods();
+  const active = countries.filter((c) => c.active);
 
   return (
     <section id="couverture" className="relative py-20 sm:py-24 overflow-hidden">
@@ -1610,23 +1696,25 @@ function Coverage() {
         </p>
       </motion.div>
 
-      {/* Countries — flag + name, scrolling left to right */}
-      <div className="relative mb-8">
-        <div className="flex gap-8 w-max animate-marquee">
-          {[...active, ...active].map((c, i) => (
-            <CountryChip key={`c-${i}`} c={c} />
-          ))}
+      {active.length > 0 && (
+        <div className="relative mb-8">
+          <div className="flex gap-8 w-max animate-marquee">
+            {[...active, ...active].map((c, i) => (
+              <CountryChip key={`c-${i}`} c={c} />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Payment operators — brand wordmark chips (their "logos") */}
-      <div className="relative">
-        <div className="flex gap-3 w-max animate-marquee-slow">
-          {[...operatorMarks, ...operatorMarks].map((m, i) => (
-            <MethodChip key={`m-${i}`} m={m} />
-          ))}
+      {methods.length > 0 && (
+        <div className="relative">
+          <div className="flex gap-4 w-max animate-marquee-slow">
+            {[...methods, ...methods].map((m, i) => (
+              <PaymentLogoChip key={`m-${i}`} m={m} />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="pointer-events-none absolute inset-y-0 left-0 w-16 sm:w-24 bg-gradient-to-r from-white to-transparent" />
       <div className="pointer-events-none absolute inset-y-0 right-0 w-16 sm:w-24 bg-gradient-to-l from-white to-transparent" />
@@ -1641,39 +1729,50 @@ function Coverage() {
  * itself, driven by CommissionConfig / UserCommissionConfig — UML DC-08).
  */
 
+/**
+ * Same scroll-linked decal reveal as FeaturedMarquee — a big, imposing
+ * image block glides in from one side while the copy glides in from the
+ * other — instead of the old small centered thumbnail.
+ */
 function PricingTeaser() {
+  const sectionRef = useRef(null);
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ['start 0.75', 'start 0.3'],
+  });
+  const imageX = useTransform(scrollYProgress, [0, 1], [-90, 0]);
+  const textX = useTransform(scrollYProgress, [0, 1], [90, 0]);
+  const opacity = useTransform(scrollYProgress, [0, 0.6], [0, 1]);
+
   return (
-    <section className="py-16 sm:py-24">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-15% 0px' }}
-          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-          className="relative mx-auto mb-10 w-40 h-40 sm:w-52 sm:h-52 rounded-2xl overflow-hidden border border-ink-200 shadow-[0_18px_40px_-20px_rgba(11,19,36,0.3)]"
-        >
-          <img
-            src={illustration.pricing}
-            alt="Tarifs Moledi Event"
-            className="w-full h-full object-cover"
-          />
-        </motion.div>
+    <section ref={sectionRef} className="py-20 sm:py-28 overflow-hidden">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+          <motion.div
+            style={{ x: imageX, opacity }}
+            className="relative w-full aspect-[4/3] sm:aspect-[16/11] rounded-3xl overflow-hidden border border-ink-200 shadow-[0_30px_70px_-25px_rgba(11,19,36,0.35)]"
+          >
+            <img
+              src={illustration.pricing}
+              alt="Tarifs Moledi Event"
+              className="w-full h-full object-cover"
+            />
+          </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-15% 0px' }}
-          transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <p className="text-primary font-semibold tracking-[0.2em] uppercase text-[10px] mb-3">
-            Tarification claire
-          </p>
-          <h2 className="text-3xl sm:text-5xl text-ink-900 mb-8">Découvrez nos tarifs</h2>
-
-          <a href="/tarifs" className="btn btn-secondary">
-            Voir le détail
-          </a>
-        </motion.div>
+          <motion.div style={{ x: textX, opacity }} className="text-center lg:text-left">
+            <p className="text-primary font-semibold tracking-[0.2em] uppercase text-[10px] mb-3">
+              Tarification claire
+            </p>
+            <h2 className="text-3xl sm:text-5xl text-ink-900 mb-5">Découvrez nos tarifs</h2>
+            <p className="text-ink-700 normal-case mb-8 max-w-md mx-auto lg:mx-0">
+              Une seule commission, prélevée uniquement quand vous encaissez.
+              Voyez exactement ce que vous gardez, pays par pays.
+            </p>
+            <a href="/tarifs" className="btn btn-secondary">
+              Voir le détail
+            </a>
+          </motion.div>
+        </div>
       </div>
     </section>
   );
@@ -1688,6 +1787,7 @@ function Home() {
         <Hero />
         <ZUIHubStory />
         <FeaturedMarquee />
+        <ShowcaseMarquee />
         <HowTimeline />
         <Coverage />
         <PricingTeaser />
