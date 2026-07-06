@@ -729,10 +729,17 @@ function ZUIHubStory() {
     const duration = durationFor(currentStepRef.current, clamped);
     isAnimatingRef.current = true;
     currentStepRef.current = clamped;
+    // Safety net: if onComplete never fires for any reason (backgrounded
+    // tab, a stalled tween...), this guarantees scroll isn't permanently
+    // locked out waiting for a callback that's never coming.
+    const safetyTimer = setTimeout(() => {
+      if (currentStepRef.current === clamped) isAnimatingRef.current = false;
+    }, duration * 1000 + 1500);
     tl.tweenTo(stops[clamped], {
       duration,
       ease: STEP_EASE,
       onComplete: () => {
+        clearTimeout(safetyTimer);
         isAnimatingRef.current = false;
         // Once the very first or very last stop is genuinely reached (the
         // clip has finished playing), snap the real scroll position to the
@@ -816,13 +823,19 @@ function ZUIHubStory() {
     }
   };
 
-  // The whole pin + capture engine is delegated to GSAP's ScrollTrigger —
-  // `normalizeScroll(true)` irons out mobile touch/momentum inconsistencies.
-  // We never scrub the camera 1:1 with scroll position: a small scroll is
-  // just the "play" signal, and the clip's own duration paces the story.
+  // The whole pin + capture engine is delegated to GSAP's ScrollTrigger.
+  // `normalizeScroll(true)` used to run unconditionally, meant to iron out
+  // mobile touch/momentum inconsistencies — but on some mobile browsers it
+  // does the opposite and leaves the whole page's scroll stuck. Now
+  // desktop-only (touch scroll deltas already reach `onUpdate` fine
+  // without it). We never scrub the camera 1:1 with scroll position: a
+  // small scroll is just the "play" signal, and the clip's own duration
+  // paces the story.
   useEffect(() => {
     if (alreadyDone) return;
-    ScrollTrigger.normalizeScroll(true);
+    if (window.matchMedia('(pointer: fine)').matches) {
+      ScrollTrigger.normalizeScroll(true);
+    }
 
     // Lower than before: the old threshold made a normal scroll gesture
     // feel like it "didn't register", tempting a second scroll while the
@@ -912,7 +925,7 @@ function ZUIHubStory() {
         <div
           key={`${univ.id}-flash`}
           ref={(el) => (flashRefs.current[i] = el)}
-          className="pointer-events-none fixed inset-0 z-20"
+          className="pointer-events-none absolute inset-0 z-20"
           style={{ background: 'radial-gradient(circle at 50% 50%, var(--flash-color, #FF6A00) 0%, transparent 65%)' }}
         />
       ))}
@@ -929,16 +942,20 @@ function ZUIHubStory() {
       {/* Finale iris — a plain white disc that wipes over the stacked deck
           (closing) then back down (opening) onto the empty resting scene,
           like a classic game-transition cut. */}
-      <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center overflow-hidden">
         <div ref={irisRef} className="w-[300vmax] h-[300vmax] rounded-full bg-white" />
       </div>
 
       {/* Finale slogan — surfaces from behind the stacked blocks, holds
           large and bold in the upper half of the screen, then dissipates
-          like smoke. */}
+          like smoke. Absolute (not fixed) and contained by the section's
+          own `overflow-hidden`: once the story is over and this stays
+          visible for good, a `fixed` element would keep floating over
+          every other section on the page as the visitor scrolls past —
+          `absolute` scrolls away with the section like everything else. */}
       <div
         ref={finaleTextRef}
-        className="pointer-events-none fixed inset-0 z-50 flex items-start justify-center px-6 pt-24 sm:pt-32"
+        className="pointer-events-none absolute inset-0 z-50 flex items-start justify-center px-6 pt-24 sm:pt-32"
       >
         <p className="text-ink-900 font-black text-4xl sm:text-7xl lg:text-8xl leading-[1.05] text-center max-w-4xl">
           <span className="block">{FINALE_SLOGAN_LINE_1}</span>
@@ -968,7 +985,7 @@ function ZUIHubStory() {
         ref={replayButtonRef}
         type="button"
         onClick={replay}
-        className="fixed z-[60] left-1/2 -translate-x-1/2 bottom-10 sm:left-auto sm:translate-x-0 sm:right-10 lg:right-20 sm:top-1/2 sm:-translate-y-1/2 text-xs sm:text-sm font-semibold text-white bg-primary shadow-lg shadow-primary/30 rounded-full px-5 py-2.5 hover:bg-primary-600 transition-colors"
+        className="absolute z-[60] left-1/2 -translate-x-1/2 bottom-10 sm:bottom-auto sm:left-auto sm:translate-x-0 sm:right-10 lg:right-20 sm:top-1/2 sm:-translate-y-1/2 text-xs sm:text-sm font-semibold text-white bg-primary shadow-lg shadow-primary/30 rounded-full px-5 py-2.5 hover:bg-primary-600 transition-colors"
       >
         ↻ Relancer l'animation
       </button>
@@ -1170,7 +1187,7 @@ function ImmersiveOverlay({ univ, overlayRef, index }) {
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-30 overflow-y-auto lg:overflow-hidden"
+      className="absolute inset-0 z-30 overflow-y-auto lg:overflow-hidden"
       style={{ pointerEvents: 'none' }}
     >
       <div className="absolute inset-0">
@@ -1600,11 +1617,13 @@ function ShowcaseMarquee() {
   const track = [...SHOWCASE_CARDS, ...SHOWCASE_CARDS];
   return (
     <section className="py-16 sm:py-24 overflow-hidden">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center mb-10">
-        <p className="text-primary font-semibold tracking-[0.2em] uppercase text-[10px] mb-2">
+      <div className="max-w-3xl sm:max-w-6xl mx-auto px-6 sm:px-6 lg:px-8 text-center mb-8 sm:mb-10">
+        <p className="text-primary font-semibold tracking-[0.15em] sm:tracking-[0.2em] uppercase text-[10px] mb-3">
           Une plateforme, mille façons d'organiser
         </p>
-        <h2 className="text-3xl sm:text-5xl text-ink-900">Tous les événements que tu as en tête, tu peux les faire avec Moledi Events</h2>
+        <h2 className="text-2xl sm:text-5xl leading-tight sm:leading-normal text-ink-900 max-w-xs sm:max-w-none mx-auto">
+          Tous les événements que tu as en tête, tu peux les faire avec Moledi Events
+        </h2>
       </div>
 
       <div className="relative">
