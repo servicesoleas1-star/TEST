@@ -2,11 +2,116 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import SiteHeader from '../components/SiteHeader';
 import Footer from '../components/Footer';
-import { africanCountries } from '../data/africanCountries';
-import { campaignTypes, getCommissionRate } from '../data/commissionConfig';
-import { flag } from '../config/media';
-import { useCountries } from '../hooks/useCountries';
-import { usePaymentMethods } from '../hooks/usePaymentMethods';
+import { flag, illustration } from '../config/media';
+
+// --- Barème de commission (backlog LAN-08, Tarifs & Couverture) ---
+// Mirrors UML DC-08 `CommissionConfig`. Public pricing page = anonymous
+// visitors, so it always reads this global table (no UserCommissionConfig
+// override here, that only applies to logged-in organizers).
+const commissionConfigs = [
+  { config_id: 'cc-vote', type: 'VOTE', rate: 10, active: true },
+  { config_id: 'cc-contest', type: 'CONTEST', rate: 10, active: true },
+  { config_id: 'cc-ticket', type: 'TICKET', rate: 7, active: true },
+  { config_id: 'cc-donation', type: 'DONATION', rate: 7, active: true },
+  { config_id: 'cc-cf', type: 'CF', rate: 7, active: true },
+  { config_id: 'cc-lottery', type: 'LOTTERY', rate: 7, active: true },
+  { config_id: 'cc-sponsorship', type: 'SPONSORSHIP', rate: 7, active: true },
+];
+
+const campaignTypes = [
+  { key: 'VOTE', label: 'Votes & scrutins', icon: 'fa-check-to-slot' },
+  { key: 'TICKET', label: 'Billetterie', icon: 'fa-ticket' },
+  { key: 'DONATION', label: 'Dons & cagnottes', icon: 'fa-hand-holding-heart' },
+  { key: 'CF', label: 'Crowdfunding', icon: 'fa-people-group' },
+  { key: 'CONTEST', label: 'Concours', icon: 'fa-trophy' },
+  { key: 'LOTTERY', label: 'Loteries', icon: 'fa-dice' },
+  { key: 'SPONSORSHIP', label: 'Sponsoring', icon: 'fa-handshake' },
+];
+
+// If the table has no active row for a type, render an empty state rather
+// than invent a number — this is the only lookup helper.
+function getCommissionRate(type) {
+  const row = commissionConfigs.find((c) => c.type === type && c.active);
+  return row ? row.rate : null;
+}
+
+// Full African reference mapping (ISO 3166-1 alpha-2 + French name), used to
+// label whatever country_code the real CountryConfig table returns.
+const africanCountries = [
+  { code: 'DZ', name: 'Algérie' }, { code: 'AO', name: 'Angola' }, { code: 'BJ', name: 'Bénin' },
+  { code: 'BW', name: 'Botswana' }, { code: 'BF', name: 'Burkina Faso' }, { code: 'BI', name: 'Burundi' },
+  { code: 'CV', name: 'Cap-Vert' }, { code: 'CM', name: 'Cameroun' }, { code: 'CF', name: 'République centrafricaine' },
+  { code: 'TD', name: 'Tchad' }, { code: 'KM', name: 'Comores' }, { code: 'CG', name: 'Congo' },
+  { code: 'CD', name: 'RD Congo' }, { code: 'CI', name: "Côte d'Ivoire" }, { code: 'DJ', name: 'Djibouti' },
+  { code: 'EG', name: 'Égypte' }, { code: 'GQ', name: 'Guinée équatoriale' }, { code: 'ER', name: 'Érythrée' },
+  { code: 'SZ', name: 'Eswatini' }, { code: 'ET', name: 'Éthiopie' }, { code: 'GA', name: 'Gabon' },
+  { code: 'GM', name: 'Gambie' }, { code: 'GH', name: 'Ghana' }, { code: 'GN', name: 'Guinée' },
+  { code: 'GW', name: 'Guinée-Bissau' }, { code: 'KE', name: 'Kenya' }, { code: 'LS', name: 'Lesotho' },
+  { code: 'LR', name: 'Liberia' }, { code: 'LY', name: 'Libye' }, { code: 'MG', name: 'Madagascar' },
+  { code: 'MW', name: 'Malawi' }, { code: 'ML', name: 'Mali' }, { code: 'MR', name: 'Mauritanie' },
+  { code: 'MU', name: 'Maurice' }, { code: 'MA', name: 'Maroc' }, { code: 'MZ', name: 'Mozambique' },
+  { code: 'NA', name: 'Namibie' }, { code: 'NE', name: 'Niger' }, { code: 'NG', name: 'Nigeria' },
+  { code: 'RW', name: 'Rwanda' }, { code: 'ST', name: 'Sao Tomé-et-Principe' }, { code: 'SN', name: 'Sénégal' },
+  { code: 'SC', name: 'Seychelles' }, { code: 'SL', name: 'Sierra Leone' }, { code: 'SO', name: 'Somalie' },
+  { code: 'ZA', name: 'Afrique du Sud' }, { code: 'SS', name: 'Soudan du Sud' }, { code: 'SD', name: 'Soudan' },
+  { code: 'TZ', name: 'Tanzanie' }, { code: 'TG', name: 'Togo' }, { code: 'TN', name: 'Tunisie' },
+  { code: 'UG', name: 'Ouganda' }, { code: 'ZM', name: 'Zambie' }, { code: 'ZW', name: 'Zimbabwe' },
+];
+
+// Preloads countries from `/api/countries` (`country_config` table). Empty
+// table → empty array, nothing invented client-side.
+function useCountries() {
+  const [countries, setCountries] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/countries')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setCountries(data.ok ? data.countries : []);
+      })
+      .catch(() => {
+        if (!cancelled) setCountries([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { countries, loading };
+}
+
+// Preloads payment operators from `/api/payment-methods` (Aggregator table).
+// Each row is expected to carry a `logo_url`; the UI falls back to initials
+// only if that logo fails to load.
+function usePaymentMethods() {
+  const [methods, setMethods] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/payment-methods')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setMethods(data.ok ? data.methods : []);
+      })
+      .catch(() => {
+        if (!cancelled) setMethods([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { methods, loading };
+}
 
 /**
  * Searchable country dropdown — replaces the cramped tile grid with a single
