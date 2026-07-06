@@ -438,7 +438,7 @@ const FLIGHT_STYLES = [
 const FINALE_SLOGAN_LINE_1 = 'Faites entrer la fête';
 const FINALE_SLOGAN_LINE_2 = 'dans votre poche';
 
-function ZUIHubStory() {
+function ZUIHubStory({ onReplay }) {
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const imgRefs = useRef([]);
@@ -653,17 +653,9 @@ function ZUIHubStory() {
       tl.to(irisRef.current, { scale: 0, duration: 0.75, ease: 'power2.out' }, stackDoneAt + 0.4);
       tl.to(finaleTextRef.current, { opacity: 1, scale: 1, duration: 0.75, ease: 'back.out(1.3)' }, stackDoneAt + 0.4);
 
-      tl.to({}, { duration: 1.5 });
-
-      // Dissipates like smoke — blur + drift up + grow, not a plain fade.
-      tl.to(finaleTextRef.current, {
-        opacity: 0,
-        y: -40,
-        scale: 1.15,
-        filter: 'blur(18px)',
-        duration: 0.9,
-        ease: 'power2.in',
-      });
+      // The slogan stays on screen — it does not fade away — until the
+      // visitor chooses to "Revoir le récap" (full remount, see onReplay).
+      tl.to({}, { duration: 0.6 });
 
       tl.addLabel('finale-done');
       stops.push('finale-done');
@@ -696,9 +688,6 @@ function ZUIHubStory() {
     } catch {
       /* private browsing / storage disabled — harmless to skip */
     }
-    // Release the pin (and its scroll-spacer) right away so the collapsing
-    // wrapper below isn't fighting ScrollTrigger's own layout bookkeeping.
-    stRef.current?.kill();
     setFinished(true);
   };
 
@@ -831,20 +820,12 @@ function ZUIHubStory() {
   }, [alreadyDone]);
 
   return (
-    // Once the story is finished, this wrapper collapses to nothing — the
-    // section itself disappears instead of leaving an empty resting frame
-    // behind, and whatever comes next in the page rises up to take its
-    // place. Stays collapsed for the rest of the browser tab's life
-    // (sessionStorage), even if the visitor scrolls back up into it.
-    <div
-      style={{
-        maxHeight: finished ? '0px' : '2000px',
-        overflow: 'hidden',
-        transition: 'max-height 0.9s cubic-bezier(0.65,0,0.35,1)',
-      }}
-    >
-    {/* ScrollTrigger's `pin: true` wraps this in its own spacer and pins it
-        at top:0 for the whole scroll budget above. */}
+    // ScrollTrigger's `pin: true` wraps this in its own spacer and pins it
+    // at top:0 for the whole scroll budget above. Do NOT wrap this section
+    // in anything that changes size/style based on React state — GSAP
+    // mutates this subtree's DOM directly (pin spacer, inline transforms)
+    // outside of React's knowledge, and a surrounding re-render fights that
+    // and corrupts the layout (this broke the whole page once already).
     <section
       ref={rootRef}
       className="relative h-[100svh] overflow-hidden"
@@ -909,10 +890,10 @@ function ZUIHubStory() {
         </p>
       </div>
 
-      {/* Sober "skip" — fast-forwards through to the finale. Sits at the
-          bottom of this (100svh) section, which is exactly the bottom of
-          the screen once the story is actively pinned. */}
-      {!finished && (
+      {/* Sober "skip" while the story is still running; once it's done, a
+          "Revoir le récap" button takes its place instead (the slogan
+          itself stays on screen, it no longer fades away). */}
+      {!finished ? (
         <button
           type="button"
           onClick={skipToEnd}
@@ -920,9 +901,16 @@ function ZUIHubStory() {
         >
           Passer
         </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onReplay}
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[60] text-xs font-semibold text-white bg-primary shadow-lg shadow-primary/30 rounded-full px-5 py-2.5 hover:bg-primary-600 transition-colors"
+        >
+          ↻ Revoir le récap
+        </button>
       )}
     </section>
-    </div>
   );
 }
 
@@ -1494,25 +1482,30 @@ const STEPS = [
   },
 ];
 
-// One distinct photo per card (no reuse of the `illustration` set used
-// elsewhere on the page) — placeholder Unsplash shots until real event
-// photos are uploaded. Votes opens the strip, then categories are mixed,
-// never grouped back-to-back.
-const showcasePhoto = (id) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=700&q=80`;
-
+// Real event photos (provided by the client, dropped in public/) — one
+// distinct photo per card, no repeats. Votes opens the strip, then
+// categories are mixed, never grouped back-to-back. Miss/Mister shows up
+// several times on purpose (explicitly asked to be one of the most
+// prominent categories here).
 const SHOWCASE_CARDS = [
-  { image: showcasePhoto('1618216797614-4b0a4b1a3b9e'), text: 'Pour tous vos concours de Miss & Mister', color: '#FF6A00' },
-  { image: showcasePhoto('1532629345422-7515f3d16bb6'), text: 'Pour toutes vos collectes de fonds', color: '#2B6BFF' },
-  { image: showcasePhoto('1493225457124-a3eb161ffa5f'), text: 'Pour tous vos concerts et spectacles', color: '#FF6A00' },
-  { image: showcasePhoto('1522869635100-9f4c5e86aa37'), text: 'Pour tous vos jeux-concours', color: '#2B6BFF' },
-  { image: showcasePhoto('1521791136064-7986c2920216'), text: 'Pour tous vos projets entrepreneuriaux', color: '#FF6A00' },
-  { image: showcasePhoto('1560439514-4e9645039924'), text: 'Pour tous vos partenariats de marque', color: '#2B6BFF' },
-  { image: showcasePhoto('1560439513-74b037a25d84'), text: 'Pour toutes vos conférences', color: '#FF6A00' },
-  { image: showcasePhoto('1541534741688-6078c6bfb5c5'), text: 'Pour toutes vos élections associatives', color: '#2B6BFF' },
-  { image: showcasePhoto('1556761175-5973dc0f32e7'), text: 'Pour toutes vos recherches de sponsors', color: '#FF6A00' },
-  { image: showcasePhoto('1469571486292-0ba58a3f068b'), text: "Pour tous vos appels à la générosité", color: '#2B6BFF' },
-  { image: showcasePhoto('1518998053901-5348d3961a04'), text: 'Pour toutes vos tombolas caritatives', color: '#FF6A00' },
-  { image: showcasePhoto('1531058020387-3be344556be6'), text: 'Pour toutes vos causes créatives', color: '#2B6BFF' },
+  { image: '/election-vote.jpg', text: 'Pour toutes vos élections associatives', color: '#2B6BFF' },
+  { image: '/donation-coins.jpg', text: 'Pour toutes vos collectes de fonds', color: '#FF6A00' },
+  { image: '/concert-crowd.jpg', text: 'Pour tous vos concerts et spectacles', color: '#2B6BFF' },
+  { image: '/contest-trophy.jpg', text: 'Pour tous vos jeux-concours', color: '#FF6A00' },
+  { image: '/community-hands.jpg', text: 'Pour tous vos partenariats de marque', color: '#2B6BFF' },
+  { image: '/miss-universe.jpg', text: 'Pour tous vos concours de Miss & Mister', color: '#FF6A00' },
+  { image: '/concert-jazz.jpg', text: 'Pour toutes vos soirées live', color: '#2B6BFF' },
+  { image: '/community-heart.jpg', text: "Pour tous vos appels à la générosité", color: '#FF6A00' },
+  { image: '/dance-contest.jpg', text: 'Pour tous vos concours de danse', color: '#2B6BFF' },
+  { image: '/awards-gala.jpg', text: 'Pour toutes vos remises de prix', color: '#FF6A00' },
+  { image: '/concert-stadium.jpg', text: 'Pour tous vos grands concerts', color: '#2B6BFF' },
+  { image: '/miss-mister-pageant.jpg', text: 'Pour tous vos concours de talents', color: '#FF6A00' },
+  { image: '/gala-performance.jpg', text: 'Pour tous vos galas culturels', color: '#2B6BFF' },
+  { image: '/choir-performance.jpg', text: 'Pour toutes vos soirées gospel', color: '#FF6A00' },
+  { image: '/concert-outdoor.jpg', text: 'Pour tous vos festivals', color: '#2B6BFF' },
+  { image: '/award-winner.jpg', text: 'Pour toutes vos cérémonies de récompense', color: '#FF6A00' },
+  { image: '/miss-crown.jpg', text: 'Pour toutes vos élections de reines de beauté', color: '#2B6BFF' },
+  { image: '/concert-singer.jpg', text: 'Pour toutes vos scènes ouvertes', color: '#FF6A00' },
 ];
 
 function ShowcaseCard({ image, text, color, index }) {
@@ -1543,7 +1536,7 @@ function ShowcaseMarquee() {
         <p className="text-primary font-semibold tracking-[0.2em] uppercase text-[10px] mb-2">
           Une plateforme, mille façons d'organiser
         </p>
-        <h2 className="text-3xl sm:text-5xl text-ink-900">Tous les événements que tu peux faire avec Moledi Events</h2>
+        <h2 className="text-3xl sm:text-5xl text-ink-900">Quel événement ne peux-tu pas faire avec Moledi ?</h2>
       </div>
 
       <div className="relative">
@@ -1846,9 +1839,10 @@ function SparkleCursor() {
   const idRef = useRef(0);
   const lastRef = useRef(0);
 
+  // The pointer itself stays the normal, standard system cursor — only a
+  // trail of sparkles rides along with it while scrolling/navigating.
   useEffect(() => {
     if (!fine) return;
-    document.body.style.cursor = 'none';
     const onMove = (e) => {
       const now = performance.now();
       if (now - lastRef.current < 45) return;
@@ -1860,10 +1854,7 @@ function SparkleCursor() {
       ]);
     };
     window.addEventListener('mousemove', onMove);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      document.body.style.cursor = '';
-    };
+    return () => window.removeEventListener('mousemove', onMove);
   }, [fine]);
 
   if (!fine) return null;
@@ -1891,13 +1882,26 @@ function SparkleCursor() {
 }
 
 function Home() {
+  // Remount key for "Revoir le récap": bumping it forces ZUIHubStory to
+  // unmount/remount from scratch, which is the safe way to reset all its
+  // GSAP/ScrollTrigger internals rather than trying to rewind them by hand.
+  const [zuiKey, setZuiKey] = useState(0);
+  const replayZui = () => {
+    try {
+      sessionStorage.removeItem(DONE_KEY);
+    } catch {
+      /* private browsing / storage disabled — harmless to skip */
+    }
+    setZuiKey((k) => k + 1);
+  };
+
   return (
     <>
       <SparkleCursor />
       <SiteHeader activeHref="/" />
       <main>
         <Hero />
-        <ZUIHubStory />
+        <ZUIHubStory key={zuiKey} onReplay={replayZui} />
         <FeaturedMarquee />
         <ShowcaseMarquee />
         <HowTimeline />

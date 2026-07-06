@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { media } from '../config/media';
+import { media, flag } from '../config/media';
 
 const navLinks = [
   { label: 'Accueil', href: '/' },
@@ -22,18 +22,20 @@ const item = {
 
 /**
  * Just the button for now — no translation system wired up yet (that's a
- * separate, later piece of work). Clicking it only toggles its own label.
+ * separate, later piece of work). Clicking it only toggles which flag is
+ * shown. A real flag image (flagcdn), never an emoji.
  */
 function LanguageButton() {
-  const [lang, setLang] = useState('FR');
+  const [lang, setLang] = useState('fr');
+  const countryCode = lang === 'fr' ? 'fr' : 'gb';
   return (
     <button
       type="button"
-      onClick={() => setLang((l) => (l === 'FR' ? 'EN' : 'FR'))}
+      onClick={() => setLang((l) => (l === 'fr' ? 'en' : 'fr'))}
       aria-label="Changer de langue"
-      className="w-9 h-9 rounded-full border border-ink-200 flex items-center justify-center text-[11px] font-semibold text-ink-700 hover:border-primary hover:text-primary transition-colors"
+      className="w-9 h-9 rounded-full border border-ink-200 overflow-hidden flex items-center justify-center hover:border-primary transition-colors"
     >
-      {lang}
+      <img src={flag(countryCode, 40)} alt={lang.toUpperCase()} className="w-full h-full object-cover" />
     </button>
   );
 }
