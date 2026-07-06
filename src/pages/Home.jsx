@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import SiteHeader from '../components/SiteHeader';
@@ -400,7 +400,12 @@ const positions = positionsFor(universes.length);
 // deliberate dwell at zoom-1 in the middle of a flight: the camera parks on
 // the block for a beat — long enough to read its title/description — before
 // diving on into zoom-2.
-const T = { in: 1.7, hold: 0.9, deepen: 1.2, surface: 1.1, out: 1.3 };
+// `surface` (zoom-1 -> overview, showing every block again) and `out` (the
+// tail end of that same dézoom) now weigh as much as `in` — the reported
+// bug was that leaving zoom-1 to show the full overview felt like a jump
+// cut, because those phases were much shorter than the entrance. They're
+// deliberately symmetric now: leaving is as slow and deliberate as arriving.
+const T = { in: 2.2, hold: 0.7, deepen: 1.1, surface: 1.9, out: 2.1 };
 
 // Real seconds for each clip. Simple pause-per-block pacing, like a video
 // you scroll to play/pause: one scroll takes you from the overview into a
@@ -409,7 +414,7 @@ const T = { in: 1.7, hold: 0.9, deepen: 1.2, surface: 1.1, out: 1.3 };
 // next block, pausing again at its zoom-2. No speed-up, no "turbo": every
 // clip always plays at its own natural pace — slow and cinematic, like a
 // film reel, never a snap-cut.
-const STEP_DURATION = { inDeep: 4.4, next: 6.2, out: 3.2, finale: 3.6 };
+const STEP_DURATION = { inDeep: 5.2, next: 8, out: 4.4, finale: 4.2 };
 const STEP_EASE = 'power2.inOut';
 
 // One camera easing curve for every block — kept uniform on purpose so the
@@ -489,9 +494,10 @@ function ZUIHubStory() {
       // screens this resolves to 1 exactly as before, no regression there.
       const ZOOM_1 = Math.min(1, (viewportW * 0.92) / BLOCK_W);
       const ZOOM_2 = ZOOM_1 * 1.45;
-      // Push the whole scene down by half the navbar height so the fixed
-      // header never overlaps blocks that sit near the top of the canvas.
-      const yOffset = navHeight / 2;
+      // Push the whole scene down by the full navbar height (blocks got
+      // bigger, so half a header-height was no longer enough clearance —
+      // the fixed header was visibly cutting into the top block).
+      const yOffset = navHeight;
 
       gsap.set(canvas, { x: 0, y: yOffset, scale: OVERVIEW, transformOrigin: '50% 50%' });
       gsap.set(imgRefs.current, { scale: 1, transformOrigin: '50% 50%' });
@@ -502,7 +508,7 @@ function ZUIHubStory() {
       gsap.set(blockRefs.current, { opacity: 1, filter: 'blur(0px)' });
       gsap.set(logoRef.current, { opacity: 1, filter: 'blur(0px)' });
       gsap.set(irisRef.current, { scale: 0 });
-      gsap.set(finaleTextRef.current, { opacity: 0, scale: 0.85 });
+      gsap.set(finaleTextRef.current, { opacity: 0, scale: 0.85, filter: 'blur(0px)' });
 
       // Already rode the full story this session — leave the canvas parked
       // on the resting overview frame and skip building the scroll-jacking
@@ -636,18 +642,28 @@ function ZUIHubStory() {
 
       const stackDoneAt = finaleStart + (universes.length - 1) * stackStagger + stackDuration;
 
-      // Iris closes over the stacked deck...
-      tl.to(irisRef.current, { scale: 1, duration: 0.55, ease: 'power2.in' }, stackDoneAt - 0.2);
-      // ...hidden behind full white, the scene resets instantly...
-      tl.set(blockRefs.current, { opacity: 0 }, stackDoneAt + 0.3);
-      tl.set(canvas, { x: 0, y: yOffset, scale: OVERVIEW }, stackDoneAt + 0.3);
-      // ...and the iris opens back onto an empty, resting canvas.
-      tl.to(irisRef.current, { scale: 0, duration: 0.55, ease: 'power2.out' }, stackDoneAt + 0.35);
+      // Iris closes over the stacked deck, tucking it away like slipping
+      // it into a pocket...
+      tl.to(irisRef.current, { scale: 1, duration: 0.6, ease: 'power2.in' }, stackDoneAt - 0.2);
+      tl.set(blockRefs.current, { opacity: 0 }, stackDoneAt + 0.4);
+      tl.set(canvas, { x: 0, y: yOffset, scale: OVERVIEW }, stackDoneAt + 0.4);
+      // ...and the slogan surfaces exactly as the iris starts to part again,
+      // as if it had been hiding behind the stacked blocks all along and is
+      // now pulled back out of the pocket.
+      tl.to(irisRef.current, { scale: 0, duration: 0.75, ease: 'power2.out' }, stackDoneAt + 0.4);
+      tl.to(finaleTextRef.current, { opacity: 1, scale: 1, duration: 0.75, ease: 'back.out(1.3)' }, stackDoneAt + 0.4);
 
-      // The slogan pops into view — no typewriter — holds, then fades.
-      tl.to(finaleTextRef.current, { opacity: 1, scale: 1, duration: 0.55, ease: 'back.out(1.5)' }, stackDoneAt + 0.75);
-      tl.to({}, { duration: 1.3 });
-      tl.to(finaleTextRef.current, { opacity: 0, y: -14, duration: 0.5, ease: 'power2.in' });
+      tl.to({}, { duration: 1.5 });
+
+      // Dissipates like smoke — blur + drift up + grow, not a plain fade.
+      tl.to(finaleTextRef.current, {
+        opacity: 0,
+        y: -40,
+        scale: 1.15,
+        filter: 'blur(18px)',
+        duration: 0.9,
+        ease: 'power2.in',
+      });
 
       tl.addLabel('finale-done');
       stops.push('finale-done');
@@ -680,6 +696,9 @@ function ZUIHubStory() {
     } catch {
       /* private browsing / storage disabled — harmless to skip */
     }
+    // Release the pin (and its scroll-spacer) right away so the collapsing
+    // wrapper below isn't fighting ScrollTrigger's own layout bookkeeping.
+    stRef.current?.kill();
     setFinished(true);
   };
 
@@ -758,7 +777,11 @@ function ZUIHubStory() {
     if (alreadyDone) return;
     ScrollTrigger.normalizeScroll(true);
 
-    const FIRE_THRESHOLD = 24;
+    // Lower than before: the old threshold made a normal scroll gesture
+    // feel like it "didn't register", tempting a second scroll while the
+    // first one was already queued — this fires sooner, closer to the
+    // gesture itself.
+    const FIRE_THRESHOLD = 10;
 
     const st = ScrollTrigger.create({
       trigger: rootRef.current,
@@ -808,8 +831,20 @@ function ZUIHubStory() {
   }, [alreadyDone]);
 
   return (
-    // ScrollTrigger's `pin: true` wraps this in its own spacer and pins it
-    // at top:0 for the whole scroll budget above.
+    // Once the story is finished, this wrapper collapses to nothing — the
+    // section itself disappears instead of leaving an empty resting frame
+    // behind, and whatever comes next in the page rises up to take its
+    // place. Stays collapsed for the rest of the browser tab's life
+    // (sessionStorage), even if the visitor scrolls back up into it.
+    <div
+      style={{
+        maxHeight: finished ? '0px' : '2000px',
+        overflow: 'hidden',
+        transition: 'max-height 0.9s cubic-bezier(0.65,0,0.35,1)',
+      }}
+    >
+    {/* ScrollTrigger's `pin: true` wraps this in its own spacer and pins it
+        at top:0 for the whole scroll budget above. */}
     <section
       ref={rootRef}
       className="relative h-[100svh] overflow-hidden"
@@ -859,12 +894,14 @@ function ZUIHubStory() {
         <div ref={irisRef} className="w-[300vmax] h-[300vmax] rounded-full bg-white" />
       </div>
 
-      {/* Finale slogan — pops in (not typewritten), holds, fades. */}
+      {/* Finale slogan — surfaces from behind the stacked blocks, holds
+          large and bold in the upper half of the screen, then dissipates
+          like smoke. */}
       <div
         ref={finaleTextRef}
-        className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center px-6"
+        className="pointer-events-none fixed inset-0 z-50 flex items-start justify-center px-6 pt-24 sm:pt-32"
       >
-        <p className="text-ink-900 text-3xl sm:text-5xl leading-tight text-center">
+        <p className="text-ink-900 font-black text-4xl sm:text-7xl lg:text-8xl leading-[1.05] text-center max-w-4xl">
           <span className="block">{FINALE_SLOGAN_LINE_1}</span>
           <span className="block bg-gradient-to-r from-primary to-primary-300 bg-clip-text text-transparent">
             {FINALE_SLOGAN_LINE_2}
@@ -885,13 +922,14 @@ function ZUIHubStory() {
         </button>
       )}
     </section>
+    </div>
   );
 }
 
 function CenterLogo({ logoRef }) {
   return (
     <div ref={logoRef} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: 0, top: 0, willChange: 'opacity, filter' }}>
-      <div className="relative w-44 h-44 sm:w-64 sm:h-64 flex items-center justify-center">
+      <div className="relative w-64 h-40 sm:w-96 sm:h-60 flex items-center justify-center">
         <div className="absolute inset-[-30px] rounded-full bg-primary/15 blur-3xl animate-pulse" />
         <LogoImg />
       </div>
@@ -902,9 +940,9 @@ function CenterLogo({ logoRef }) {
 function LogoImg() {
   return (
     <img
-      src={media.logoMark}
+      src={media.logo}
       alt="Moledi Event"
-      className="relative w-32 h-32 sm:w-48 sm:h-48 object-contain drop-shadow-[0_18px_40px_rgba(255,106,0,0.35)]"
+      className="relative w-56 h-auto sm:w-80 object-contain drop-shadow-[0_18px_40px_rgba(255,106,0,0.35)]"
     />
   );
 }
@@ -1097,12 +1135,6 @@ function ImmersiveOverlay({ univ, overlayRef, index }) {
       <div className="relative min-h-full lg:h-full flex items-center justify-center px-4 pt-20 pb-8 lg:pt-24 lg:pb-6">
         <div className="w-full max-w-5xl">
           <div className="text-center mb-5 sm:mb-6">
-            <span
-              className="inline-block text-[9px] sm:text-[10px] tracking-[0.3em] uppercase font-semibold mb-2 px-3 py-1 rounded-full border bg-white/70"
-              style={{ color, borderColor: `${color}55` }}
-            >
-              Univers Moledi Event
-            </span>
             <h3 className="font-heading text-ink-900 text-2xl sm:text-3xl lg:text-4xl normal-case">
               {univ.label}
             </h3>
@@ -1380,11 +1412,15 @@ function FeaturedMarquee() {
       <div className="pointer-events-none absolute top-0 right-0 w-[28rem] h-[28rem] rounded-full bg-secondary/5 blur-[100px]" />
 
       <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 lg:gap-16 items-center">
+        {/* flex, not grid: the ticket fan only ever takes the width it
+            actually needs (shrink-0) and the text takes what's left
+            (flex-1) — a 50/50 grid split used to let the fan's real width
+            spill into the text column and cover part of the headline. */}
+        <div className="flex flex-col lg:flex-row lg:items-center gap-10 lg:gap-16">
           {/* Ticket fan — order-2 on mobile so the headline reads first */}
           <motion.div
             style={{ x: ticketsX }}
-            className="order-2 lg:order-1 flex justify-center lg:justify-start"
+            className="order-2 lg:order-1 shrink-0 flex justify-center lg:justify-start"
           >
             {TICKETS.map((t, i) => (
               <Ticket key={i} {...t} index={i} />
@@ -1393,7 +1429,7 @@ function FeaturedMarquee() {
 
           <motion.div
             style={{ x: textX, opacity: textOpacity }}
-            className="order-1 lg:order-2 text-center lg:text-left"
+            className="order-1 lg:order-2 flex-1 min-w-0 text-center lg:text-left"
           >
             <p className="text-primary font-semibold tracking-[0.2em] uppercase text-[10px] mb-2">
               En ce moment
@@ -1458,31 +1494,41 @@ const STEPS = [
   },
 ];
 
-// Concrete examples of what people actually build on Moledi Event, mixed
-// across categories (2 cards per type, never grouped back-to-back) instead
-// of generic customer-quote testimonials — the platform is too young for
-// real quotes, but the range of use cases speaks for itself.
+// One distinct photo per card (no reuse of the `illustration` set used
+// elsewhere on the page) — placeholder Unsplash shots until real event
+// photos are uploaded. Votes opens the strip, then categories are mixed,
+// never grouped back-to-back.
+const showcasePhoto = (id) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=700&q=80`;
+
 const SHOWCASE_CARDS = [
-  { image: illustration.votes, text: 'Pour tous vos concours de Miss & Mister' },
-  { image: illustration.donations, text: 'Pour toutes vos collectes de fonds' },
-  { image: illustration.ticketing, text: 'Pour tous vos concerts et spectacles' },
-  { image: illustration.contests, text: 'Pour tous vos jeux-concours' },
-  { image: illustration.crowdfunding, text: 'Pour tous vos projets entrepreneuriaux' },
-  { image: illustration.sponsoring, text: 'Pour tous vos partenariats de marque' },
-  { image: illustration.ticketing, text: 'Pour toutes vos conférences' },
-  { image: illustration.votes, text: 'Pour toutes vos élections associatives' },
-  { image: illustration.sponsoring, text: 'Pour toutes vos recherches de sponsors' },
-  { image: illustration.donations, text: "Pour tous vos appels à la générosité" },
-  { image: illustration.contests, text: 'Pour toutes vos tombolas caritatives' },
-  { image: illustration.crowdfunding, text: 'Pour toutes vos causes créatives' },
+  { image: showcasePhoto('1618216797614-4b0a4b1a3b9e'), text: 'Pour tous vos concours de Miss & Mister', color: '#FF6A00' },
+  { image: showcasePhoto('1532629345422-7515f3d16bb6'), text: 'Pour toutes vos collectes de fonds', color: '#2B6BFF' },
+  { image: showcasePhoto('1493225457124-a3eb161ffa5f'), text: 'Pour tous vos concerts et spectacles', color: '#FF6A00' },
+  { image: showcasePhoto('1522869635100-9f4c5e86aa37'), text: 'Pour tous vos jeux-concours', color: '#2B6BFF' },
+  { image: showcasePhoto('1521791136064-7986c2920216'), text: 'Pour tous vos projets entrepreneuriaux', color: '#FF6A00' },
+  { image: showcasePhoto('1560439514-4e9645039924'), text: 'Pour tous vos partenariats de marque', color: '#2B6BFF' },
+  { image: showcasePhoto('1560439513-74b037a25d84'), text: 'Pour toutes vos conférences', color: '#FF6A00' },
+  { image: showcasePhoto('1541534741688-6078c6bfb5c5'), text: 'Pour toutes vos élections associatives', color: '#2B6BFF' },
+  { image: showcasePhoto('1556761175-5973dc0f32e7'), text: 'Pour toutes vos recherches de sponsors', color: '#FF6A00' },
+  { image: showcasePhoto('1469571486292-0ba58a3f068b'), text: "Pour tous vos appels à la générosité", color: '#2B6BFF' },
+  { image: showcasePhoto('1518998053901-5348d3961a04'), text: 'Pour toutes vos tombolas caritatives', color: '#FF6A00' },
+  { image: showcasePhoto('1531058020387-3be344556be6'), text: 'Pour toutes vos causes créatives', color: '#2B6BFF' },
 ];
 
-function ShowcaseCard({ image, text }) {
+function ShowcaseCard({ image, text, color, index }) {
+  const tilt = index % 2 === 0 ? -2 : 2;
   return (
-    <div className="relative shrink-0 w-56 sm:w-72 aspect-[4/5] rounded-2xl overflow-hidden shadow-[0_20px_45px_-20px_rgba(11,19,36,0.4)]">
+    <div
+      className="group relative shrink-0 w-36 sm:w-64 aspect-[4/5] rounded-[1.5rem] overflow-hidden border-4 border-white shadow-[0_20px_45px_-20px_rgba(11,19,36,0.4)] transition-transform duration-300 hover:rotate-0 hover:scale-[1.03]"
+      style={{ transform: `rotate(${tilt}deg)` }}
+    >
       <img src={image} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
-      <div className="absolute inset-0 bg-gradient-to-t from-ink-900/85 via-ink-900/20 to-transparent" />
-      <p className="absolute inset-x-0 bottom-0 p-4 sm:p-5 text-white text-sm sm:text-base font-semibold leading-snug normal-case">
+      <div className="absolute inset-0 bg-gradient-to-t from-ink-900/90 via-ink-900/15 to-transparent" />
+      <span
+        className="absolute top-2.5 left-2.5 sm:top-3 sm:left-3 w-2.5 h-2.5 rounded-full ring-2 ring-white/70"
+        style={{ backgroundColor: color }}
+      />
+      <p className="absolute inset-x-0 bottom-0 p-3 sm:p-5 text-white text-[11px] sm:text-base font-semibold leading-snug normal-case">
         {text}
       </p>
     </div>
@@ -1495,21 +1541,21 @@ function ShowcaseMarquee() {
     <section className="py-16 sm:py-24 overflow-hidden">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center mb-10">
         <p className="text-primary font-semibold tracking-[0.2em] uppercase text-[10px] mb-2">
-          Ils créent avec Moledi Event
+          Une plateforme, mille façons d'organiser
         </p>
-        <h2 className="text-3xl sm:text-5xl text-ink-900">Un événement, mille façons de le vivre</h2>
+        <h2 className="text-3xl sm:text-5xl text-ink-900">Tous les événements que tu peux faire avec Moledi Events</h2>
       </div>
 
       <div className="relative">
         <div className="pointer-events-none absolute inset-y-0 left-0 w-16 sm:w-32 bg-gradient-to-r from-white to-transparent z-10" />
         <div className="pointer-events-none absolute inset-y-0 right-0 w-16 sm:w-32 bg-gradient-to-l from-white to-transparent z-10" />
         <motion.div
-          className="flex gap-5 sm:gap-6"
+          className="flex gap-4 sm:gap-6"
           animate={{ x: ['0%', '-50%'] }}
-          transition={{ duration: 34, repeat: Infinity, ease: 'linear' }}
+          transition={{ duration: 9, repeat: Infinity, ease: 'linear' }}
         >
           {track.map((c, i) => (
-            <ShowcaseCard key={i} {...c} />
+            <ShowcaseCard key={i} {...c} index={i} />
           ))}
         </motion.div>
       </div>
@@ -1779,9 +1825,75 @@ function PricingTeaser() {
 }
 
 
+// Desktop-only custom cursor: a small trail of star sparkles follows the
+// pointer, kept subtle (brand orange/blue, low opacity, short-lived) rather
+// than a loud/childish effect. Never active on touch devices.
+function useIsFinePointer() {
+  const [fine, setFine] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: fine)');
+    setFine(mq.matches);
+    const handler = (e) => setFine(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return fine;
+}
+
+function SparkleCursor() {
+  const fine = useIsFinePointer();
+  const [sparkles, setSparkles] = useState([]);
+  const idRef = useRef(0);
+  const lastRef = useRef(0);
+
+  useEffect(() => {
+    if (!fine) return;
+    document.body.style.cursor = 'none';
+    const onMove = (e) => {
+      const now = performance.now();
+      if (now - lastRef.current < 45) return;
+      lastRef.current = now;
+      const id = idRef.current++;
+      setSparkles((s) => [
+        ...s.slice(-18),
+        { id, x: e.clientX, y: e.clientY, blue: Math.random() > 0.5 },
+      ]);
+    };
+    window.addEventListener('mousemove', onMove);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      document.body.style.cursor = '';
+    };
+  }, [fine]);
+
+  if (!fine) return null;
+
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[999] overflow-hidden">
+      <AnimatePresence>
+        {sparkles.map((s) => (
+          <motion.span
+            key={s.id}
+            initial={{ opacity: 0.85, scale: 0.4 }}
+            animate={{ opacity: 0, scale: 1, y: -16 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.65, ease: 'easeOut' }}
+            onAnimationComplete={() => setSparkles((cur) => cur.filter((c) => c.id !== s.id))}
+            className="absolute -translate-x-1/2 -translate-y-1/2 text-xs select-none"
+            style={{ left: s.x, top: s.y, color: s.blue ? '#5F8EFF' : '#FF8533' }}
+          >
+            ✦
+          </motion.span>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function Home() {
   return (
     <>
+      <SparkleCursor />
       <SiteHeader activeHref="/" />
       <main>
         <Hero />
