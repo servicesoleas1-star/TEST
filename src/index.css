@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Deliberately no `scroll-behavior: smooth` on html: it fights GSAP
+     ScrollTrigger's own scrub/snap easing (native smooth-scroll keeps
+     animating the scroll position on top of what GSAP is driving, which
+     is exactly what caused the ZUI story to feel laggy/rubbery). GSAP's
+     tweens already provide all the smoothing this site needs. */
+  body {
+    /* Plain white everywhere — the single background colour for the
+       whole site, no tint, no per-section gradients. */
+    @apply font-body text-ink-900 bg-white antialiased;
+    overflow-x: clip;
+  }
+  h1, h2, h3 {
+    @apply font-heading uppercase tracking-wide;
+  }
+}
+
+@layer components {
+  /* ------------------------------------------------------------------ */
+  /*  Button system — squared, structured, with real depth (no pills,    */
+  /*  no arrows). A soft top highlight + tight contact shadow give each   */
+  /*  button a pressed/embossed "texture"; hover lifts it, active presses */
+  /*  it back down into the surface.                                     */
+  /* ------------------------------------------------------------------ */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl font-semibold text-sm sm:text-[15px] px-6 py-3 transition-all duration-200 ease-out select-none;
+    transform: translateY(0);
+  }
+  .btn:active {
+    transform: translateY(1px);
+  }
+  .btn-primary {
+    @apply text-white bg-gradient-to-br from-primary-300 via-primary to-primary-600;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -2px 0 rgba(0, 0, 0, 0.12),
+      0 10px 24px -10px rgba(255, 106, 0, 0.55);
+  }
+  .btn-primary:hover {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -2px 0 rgba(0, 0, 0, 0.12),
+      0 14px 28px -10px rgba(255, 106, 0, 0.65);
+    transform: translateY(-1px);
+  }
+  .btn-primary:active {
+    box-shadow:
+      inset 0 1px 4px rgba(0, 0, 0, 0.25),
+      0 4px 10px -6px rgba(255, 106, 0, 0.5);
+  }
+  .btn-secondary {
+    @apply text-white bg-gradient-to-b from-secondary-200 to-secondary;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      inset 0 -2px 0 rgba(0, 0, 0, 0.16),
+      0 10px 24px -10px rgba(43, 107, 255, 0.5);
+  }
+  .btn-secondary:hover {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      inset 0 -2px 0 rgba(0, 0, 0, 0.16),
+      0 14px 28px -10px rgba(43, 107, 255, 0.6);
+    transform: translateY(-1px);
+  }
+  .btn-secondary:active {
+    box-shadow:
+      inset 0 1px 4px rgba(0, 0, 0, 0.25),
+      0 4px 10px -6px rgba(43, 107, 255, 0.45);
+  }
+  .btn-ghost {
+    @apply text-ink-900 bg-white border border-ink-200;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      0 2px 8px -4px rgba(11, 19, 36, 0.15);
+  }
+  .btn-ghost:hover {
+    @apply border-primary/40 text-primary-600;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      0 6px 16px -6px rgba(11, 19, 36, 0.2);
+    transform: translateY(-1px);
+  }
+  .btn-light {
+    @apply text-ink-900 bg-white;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -2px 0 rgba(11, 19, 36, 0.06),
+      0 10px 24px -10px rgba(11, 19, 36, 0.35);
+  }
+  .btn-light:hover {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -2px 0 rgba(11, 19, 36, 0.06),
+      0 14px 28px -10px rgba(11, 19, 36, 0.4);
+    transform: translateY(-1px);
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .line-clamp-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* Right-to-left marquees */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.animate-marquee               { animation: marquee 34s linear infinite; }
+.animate-marquee-slow          { animation: marquee 48s linear infinite; }
+.animate-marquee-featured      { animation: marquee 40s linear infinite; }
+.animate-marquee-testimonials  { animation: marquee 55s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .animate-marquee-slow,
+  .animate-marquee-featured,
+  .animate-marquee-testimonials {
+    animation: none;
+  }
+}
+
+/* Slow organic drift for the ZUI story's curved background blobs — subtle
+   shape + position wobble, never a hard loop point. */
+@keyframes drift1 {
+  0%, 100% { border-radius: 42% 58% 65% 35% / 45% 40% 60% 55%; transform: translate3d(0, 0, 0) scale(1); }
+  50%      { border-radius: 58% 42% 40% 60% / 55% 60% 40% 45%; transform: translate3d(30px, 20px, 0) scale(1.06); }
+}
+@keyframes drift2 {
+  0%, 100% { border-radius: 60% 40% 30% 70% / 55% 65% 35% 45%; transform: translate3d(0, 0, 0) scale(1); }
+  50%      { border-radius: 35% 65% 60% 40% / 40% 45% 55% 60%; transform: translate3d(-25px, -30px, 0) scale(1.05); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[drift1_26s_ease-in-out_infinite\],
+  .animate-\[drift2_32s_ease-in-out_infinite\] {
+    animation: none;
+  }
+}
