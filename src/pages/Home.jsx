@@ -438,7 +438,7 @@ const FLIGHT_STYLES = [
 const FINALE_SLOGAN_LINE_1 = 'Faites entrer la fête';
 const FINALE_SLOGAN_LINE_2 = 'dans votre poche';
 
-function ZUIHubStory({ onReplay }) {
+function ZUIHubStory() {
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const imgRefs = useRef([]);
@@ -451,6 +451,7 @@ function ZUIHubStory({ onReplay }) {
   const logoRef = useRef(null);
   const irisRef = useRef(null);
   const finaleTextRef = useRef(null);
+  const replayButtonRef = useRef(null);
   const tlRef = useRef(null);
   const stRef = useRef(null);
   const stopsRef = useRef([]);
@@ -508,12 +509,23 @@ function ZUIHubStory({ onReplay }) {
       gsap.set(blockRefs.current, { opacity: 1, filter: 'blur(0px)' });
       gsap.set(logoRef.current, { opacity: 1, filter: 'blur(0px)' });
       gsap.set(irisRef.current, { scale: 0 });
-      gsap.set(finaleTextRef.current, { opacity: 0, scale: 0.85, filter: 'blur(0px)' });
+      gsap.set(finaleTextRef.current, { opacity: 0, scale: 0.85, x: 0, filter: 'blur(0px)' });
+      gsap.set(replayButtonRef.current, { opacity: 0, pointerEvents: 'none' });
 
-      // Already rode the full story this session — leave the canvas parked
-      // on the resting overview frame and skip building the scroll-jacking
-      // timeline altogether (no pin is created in the effect below either).
-      if (alreadyDone) return;
+      // Already rode the full story this session — jump straight to the
+      // finished, shrunk-recap resting state (skip building the
+      // scroll-jacking timeline altogether; no pin is created below).
+      if (alreadyDone) {
+        gsap.set(blockRefs.current, { opacity: 0 });
+        gsap.set(logoRef.current, { opacity: 0 });
+        gsap.set(finaleTextRef.current, {
+          opacity: 1,
+          scale: mobile ? 0.62 : 0.42,
+          x: mobile ? '-14vw' : '-30vw',
+        });
+        gsap.set(replayButtonRef.current, { opacity: 1, pointerEvents: 'auto' });
+        return;
+      }
 
       // This timeline is never scrubbed by raw scroll position. It's a fixed
       // score of camera moves, paused, that we play with tl.tweenTo() one
@@ -653,10 +665,27 @@ function ZUIHubStory({ onReplay }) {
       tl.to(irisRef.current, { scale: 0, duration: 0.75, ease: 'power2.out' }, stackDoneAt + 0.4);
       tl.to(finaleTextRef.current, { opacity: 1, scale: 1, duration: 0.75, ease: 'back.out(1.3)' }, stackDoneAt + 0.4);
 
-      // The slogan stays on screen — it does not fade away — until the
-      // visitor chooses to "Revoir le récap" (full remount, see onReplay).
-      tl.to({}, { duration: 0.6 });
+      // Full-size moment: the slogan takes over the whole screen for a beat...
+      tl.to({}, { duration: 1.1 });
 
+      // ...then shrinks down and settles to the left, freeing up a compact
+      // "reserved" strip. A "Relancer l'animation" button fades in on the
+      // right of that same strip at the same time. Less dramatic on mobile
+      // (screen's too narrow for a real left/right split).
+      tl.to(finaleTextRef.current, {
+        scale: mobile ? 0.62 : 0.42,
+        x: mobile ? '-14vw' : '-30vw',
+        duration: 0.8,
+        ease: 'power2.inOut',
+      });
+      tl.to(
+        replayButtonRef.current,
+        { opacity: 1, pointerEvents: 'auto', duration: 0.6, ease: 'power2.out' },
+        '<0.2'
+      );
+
+      // Stays right there — it does not fade away — until the visitor
+      // clicks "Relancer l'animation" (see the `replay` function below).
       tl.addLabel('finale-done');
       stops.push('finale-done');
 
@@ -755,6 +784,35 @@ function ZUIHubStory({ onReplay }) {
     } else {
       currentStepRef.current = overviewFinalIdx;
       tl.tweenTo(stops[overviewFinalIdx], { duration: 1, ease: 'power2.inOut', onComplete: playFinale });
+    }
+  };
+
+  // "Relancer l'animation" — rewinds the SAME GSAP timeline back to its
+  // start instead of remounting the component. Remounting (via a React
+  // `key` change) turned out to be unsafe here: ScrollTrigger's pin
+  // restructures the real DOM (wraps the section in a spacer) outside of
+  // React's own bookkeeping, and React crashed trying to unmount that
+  // subtree. Seeking the existing timeline back to 0 stays entirely
+  // inside GSAP's own domain, so nothing fights React for control of the
+  // DOM.
+  const replay = () => {
+    const tl = tlRef.current;
+    if (!tl) return;
+    try {
+      sessionStorage.removeItem(DONE_KEY);
+    } catch {
+      /* private browsing / storage disabled — harmless to skip */
+    }
+    isAnimatingRef.current = false;
+    currentStepRef.current = 0;
+    accumRef.current = 0;
+    tl.pause(0);
+    setFinished(false);
+    const st = stRef.current;
+    if (st) {
+      st.scroll(st.start);
+      lastScrollRef.current = st.scroll();
+      ScrollTrigger.refresh();
     }
   };
 
@@ -890,10 +948,8 @@ function ZUIHubStory({ onReplay }) {
         </p>
       </div>
 
-      {/* Sober "skip" while the story is still running; once it's done, a
-          "Revoir le récap" button takes its place instead (the slogan
-          itself stays on screen, it no longer fades away). */}
-      {!finished ? (
+      {/* Sober "skip" while the story is still running. */}
+      {!finished && (
         <button
           type="button"
           onClick={skipToEnd}
@@ -901,15 +957,21 @@ function ZUIHubStory({ onReplay }) {
         >
           Passer
         </button>
-      ) : (
-        <button
-          type="button"
-          onClick={onReplay}
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[60] text-xs font-semibold text-white bg-primary shadow-lg shadow-primary/30 rounded-full px-5 py-2.5 hover:bg-primary-600 transition-colors"
-        >
-          ↻ Revoir le récap
-        </button>
       )}
+
+      {/* "Relancer l'animation" — always in the DOM but invisible/inert
+          (opacity 0, pointer-events none) until the GSAP timeline reveals
+          it right as the slogan shrinks to the left, in sync. On mobile it
+          simply sits centred at the bottom instead of pairing with the
+          shrunk text on the right — no room for a real split there. */}
+      <button
+        ref={replayButtonRef}
+        type="button"
+        onClick={replay}
+        className="fixed z-[60] left-1/2 -translate-x-1/2 bottom-10 sm:left-auto sm:translate-x-0 sm:right-10 lg:right-20 sm:top-1/2 sm:-translate-y-1/2 text-xs sm:text-sm font-semibold text-white bg-primary shadow-lg shadow-primary/30 rounded-full px-5 py-2.5 hover:bg-primary-600 transition-colors"
+      >
+        ↻ Relancer l'animation
+      </button>
     </section>
   );
 }
@@ -1506,6 +1568,12 @@ const SHOWCASE_CARDS = [
   { image: '/award-winner.jpg', text: 'Pour toutes vos cérémonies de récompense', color: '#FF6A00' },
   { image: '/miss-crown.jpg', text: 'Pour toutes vos élections de reines de beauté', color: '#2B6BFF' },
   { image: '/concert-singer.jpg', text: 'Pour toutes vos scènes ouvertes', color: '#FF6A00' },
+  { image: '/events-collage-light.jpg', text: 'Pour tous vos événements associatifs', color: '#2B6BFF' },
+  { image: '/donation-coins.jpg', text: 'Pour toutes vos cagnottes personnelles', color: '#FF6A00' },
+  { image: '/awards-gala.jpg', text: 'Pour tous vos concours sportifs', color: '#2B6BFF' },
+  { image: '/miss-universe.jpg', text: 'Pour toutes vos élections de reine de beauté', color: '#FF6A00' },
+  { image: '/events-collage-tech.jpg', text: 'Pour tous vos lancements de projet', color: '#2B6BFF' },
+  { image: '/community-hands.jpg', text: 'Pour toutes vos levées de fonds', color: '#FF6A00' },
 ];
 
 function ShowcaseCard({ image, text, color, index }) {
@@ -1536,7 +1604,7 @@ function ShowcaseMarquee() {
         <p className="text-primary font-semibold tracking-[0.2em] uppercase text-[10px] mb-2">
           Une plateforme, mille façons d'organiser
         </p>
-        <h2 className="text-3xl sm:text-5xl text-ink-900">Quel événement ne peux-tu pas faire avec Moledi ?</h2>
+        <h2 className="text-3xl sm:text-5xl text-ink-900">Tous les événements que tu as en tête, tu peux les faire avec Moledi Events</h2>
       </div>
 
       <div className="relative">
@@ -1882,26 +1950,13 @@ function SparkleCursor() {
 }
 
 function Home() {
-  // Remount key for "Revoir le récap": bumping it forces ZUIHubStory to
-  // unmount/remount from scratch, which is the safe way to reset all its
-  // GSAP/ScrollTrigger internals rather than trying to rewind them by hand.
-  const [zuiKey, setZuiKey] = useState(0);
-  const replayZui = () => {
-    try {
-      sessionStorage.removeItem(DONE_KEY);
-    } catch {
-      /* private browsing / storage disabled — harmless to skip */
-    }
-    setZuiKey((k) => k + 1);
-  };
-
   return (
     <>
       <SparkleCursor />
       <SiteHeader activeHref="/" />
       <main>
         <Hero />
-        <ZUIHubStory key={zuiKey} onReplay={replayZui} />
+        <ZUIHubStory />
         <FeaturedMarquee />
         <ShowcaseMarquee />
         <HowTimeline />
