@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import Navbar from '../components/Navbar';
+import SiteHeader from '../components/SiteHeader';
 import Footer from '../components/Footer';
 import { media, illustration, flag } from '../config/media';
 
@@ -315,7 +315,8 @@ function Hero() {
           className="mt-6 sm:mt-7 text-sm sm:text-lg md:text-xl text-white/85 normal-case max-w-xl sm:max-w-2xl mx-auto"
         >
           Chaque événement raconte une histoire. Moledi Event vous aide à
-          l'écrire, du premier billet au dernier applaudissement.
+          l'écrire, du premier billet, du premier vote, du premier don, au
+          dernier applaudissement.
         </motion.p>
 
         <motion.div
@@ -1682,7 +1683,7 @@ function PricingTeaser() {
 function Home() {
   return (
     <>
-      <Navbar />
+      <SiteHeader activeHref="/" />
       <main>
         <Hero />
         <ZUIHubStory />
