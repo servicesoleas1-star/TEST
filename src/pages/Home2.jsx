@@ -67,7 +67,7 @@ function usePaymentMethods() {
 const u = (id, w = 700) =>
   `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`;
 
-const universes = [
+export const universes = [
   {
     id: 'votes',
     label: 'Votes & Scrutins',
@@ -261,7 +261,7 @@ function WordsReveal({ text, delay = 0, className = '', wordClassName = () => ''
   );
 }
 
-function Hero() {
+export function Hero() {
   const videoRef = useRef(null);
   const [videoReady, setVideoReady] = useState(false);
   const [videoAvailable, setVideoAvailable] = useState(true);
@@ -1462,7 +1462,7 @@ function Ticket({ image, rotate, z, index }) {
  * separate fade-ins, and no ticket ever overlaps the text column since
  * both sides finish in their own half of the row.
  */
-function FeaturedMarquee() {
+export function FeaturedMarquee() {
   const sectionRef = useRef(null);
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -1501,13 +1501,9 @@ function FeaturedMarquee() {
             <p className="text-primary font-semibold tracking-[0.2em] uppercase text-[10px] mb-2">
               En ce moment
             </p>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl text-ink-900 mb-5">
-              Événements en vedette
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl text-ink-900 mb-8">
+              Vibrez au rythme des événements qui se passent près de vous.
             </h2>
-            <p className="text-ink-700 text-base sm:text-lg normal-case mb-8 max-w-md mx-auto lg:mx-0">
-              Concerts, votes, cagnottes, projets — de nouveaux événements
-              rejoignent la plateforme chaque semaine.
-            </p>
             <a href="/evenements" className="btn btn-secondary">
               Découvrir tous les événements
             </a>
@@ -1566,39 +1562,57 @@ const STEPS = [
 // categories are mixed, never grouped back-to-back. Miss/Mister shows up
 // several times on purpose (explicitly asked to be one of the most
 // prominent categories here).
+// Local uploaded photos + a handful of Unsplash shots with an African
+// context to widen the pool — mixed, never grouped back-to-back by
+// category.
+const uImg = (id, w = 600) =>
+  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`;
+
 const SHOWCASE_CARDS = [
   { image: '/election-vote.jpg', text: 'Pour toutes vos élections associatives', color: '#2B6BFF' },
   { image: '/donation-coins.jpg', text: 'Pour toutes vos collectes de fonds', color: '#FF6A00' },
   { image: '/concert-crowd.jpg', text: 'Pour tous vos concerts et spectacles', color: '#2B6BFF' },
   { image: '/contest-trophy.jpg', text: 'Pour tous vos jeux-concours', color: '#FF6A00' },
-  { image: '/community-hands.jpg', text: 'Pour tous vos partenariats de marque', color: '#2B6BFF' },
+  { image: uImg('1523805009345-7448845a9e53'), text: 'Pour tous vos mariages traditionnels', color: '#2B6BFF' },
   { image: '/miss-universe.jpg', text: 'Pour tous vos concours de Miss & Mister', color: '#FF6A00' },
   { image: '/concert-jazz.jpg', text: 'Pour toutes vos soirées live', color: '#2B6BFF' },
   { image: '/community-heart.jpg', text: "Pour tous vos appels à la générosité", color: '#FF6A00' },
   { image: '/dance-contest.jpg', text: 'Pour tous vos concours de danse', color: '#2B6BFF' },
-  { image: '/awards-gala.jpg', text: 'Pour toutes vos remises de prix', color: '#FF6A00' },
+  { image: uImg('1519741497674-611481863552'), text: 'Pour toutes vos cérémonies coutumières', color: '#FF6A00' },
   { image: '/concert-stadium.jpg', text: 'Pour tous vos grands concerts', color: '#2B6BFF' },
   { image: '/miss-mister-pageant.jpg', text: 'Pour tous vos concours de talents', color: '#FF6A00' },
   { image: '/gala-performance.jpg', text: 'Pour tous vos galas culturels', color: '#2B6BFF' },
   { image: '/choir-performance.jpg', text: 'Pour toutes vos soirées gospel', color: '#FF6A00' },
   { image: '/concert-outdoor.jpg', text: 'Pour tous vos festivals', color: '#2B6BFF' },
   { image: '/award-winner.jpg', text: 'Pour toutes vos cérémonies de récompense', color: '#FF6A00' },
-  { image: '/miss-crown.jpg', text: 'Pour toutes vos élections de reines de beauté', color: '#2B6BFF' },
+  { image: uImg('1571266028243-5ecd42a5c69f'), text: 'Pour toutes vos remises de diplômes', color: '#2B6BFF' },
   { image: '/concert-singer.jpg', text: 'Pour toutes vos scènes ouvertes', color: '#FF6A00' },
-  { image: '/events-collage-light.jpg', text: 'Pour tous vos événements associatifs', color: '#2B6BFF' },
-  { image: '/donation-coins.jpg', text: 'Pour toutes vos cagnottes personnelles', color: '#FF6A00' },
-  { image: '/awards-gala.jpg', text: 'Pour tous vos concours sportifs', color: '#2B6BFF' },
+  { image: uImg('1517457373958-b7bdd4587205'), text: 'Pour toutes vos conférences panafricaines', color: '#2B6BFF' },
+  { image: uImg('1584464491033-06628f3a6b7b'), text: 'Pour tous vos anniversaires', color: '#FF6A00' },
+  { image: uImg('1522543979324-31b1e2fbe373'), text: 'Pour tous vos tournois sportifs', color: '#2B6BFF' },
   { image: '/miss-universe.jpg', text: 'Pour toutes vos élections de reine de beauté', color: '#FF6A00' },
-  { image: '/events-collage-tech.jpg', text: 'Pour tous vos lancements de projet', color: '#2B6BFF' },
+  { image: uImg('1531058020387-3be344556be6'), text: 'Pour tous vos lancements de projet', color: '#2B6BFF' },
   { image: '/community-hands.jpg', text: 'Pour toutes vos levées de fonds', color: '#FF6A00' },
+  { image: uImg('1509909756405-be0199881695'), text: 'Pour toutes vos soirées afro-house', color: '#2B6BFF' },
+  { image: uImg('1509721434272-b79147e0e708'), text: 'Pour toutes vos conventions', color: '#FF6A00' },
 ];
 
-function ShowcaseCard({ image, text, color, index }) {
+function ShowcaseCard({ image, text, color, index, total }) {
+  // Ring-of-cards depth cue: the strip has `perspective` on its parent, and
+  // each card gets a small rotateY that shifts by position — as the strip
+  // marches left, the same physical card sees its tilt cycle, so the whole
+  // row reads as the front of a slowly rotating wheel with the back edge
+  // hinted at through the perspective. Keeps flat/legible in the middle,
+  // tilts more at the edges.
+  const angle = (((index % total) / total) * 20) - 10; // -10° to +10°
   const tilt = index % 2 === 0 ? -2 : 2;
   return (
     <div
       className="group relative shrink-0 w-36 sm:w-64 aspect-[4/5] rounded-[1.5rem] overflow-hidden border-4 border-white shadow-[0_20px_45px_-20px_rgba(11,19,36,0.4)] transition-transform duration-300 hover:rotate-0 hover:scale-[1.03]"
-      style={{ transform: `rotate(${tilt}deg)` }}
+      style={{
+        transform: `rotate(${tilt}deg) rotateY(${angle}deg)`,
+        transformStyle: 'preserve-3d',
+      }}
     >
       <img src={image} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
       <div className="absolute inset-0 bg-gradient-to-t from-ink-900/90 via-ink-900/15 to-transparent" />
@@ -1613,7 +1627,22 @@ function ShowcaseCard({ image, text, color, index }) {
   );
 }
 
-function ShowcaseMarquee() {
+/**
+ * Infinite carousel with a rotating-wheel depth cue.
+ *
+ * Two bugs on mobile the earlier framer implementation produced:
+ *  1. `animate={{ x: ['0%', '-50%'] }}` with `duration: 9` was fast enough
+ *     that dropped frames on lower-end phones made the wrap-around visible
+ *     as a jump.
+ *  2. Framer occasionally re-mounted the animation when the section
+ *     re-entered the viewport, resetting position to 0.
+ *
+ * Fix: pure CSS `animation-name: marquee` with a much longer duration
+ * (already declared in index.css as `.animate-marquee-testimonials`, 55s),
+ * so the browser owns the loop — no React reconciliation can interrupt it,
+ * and the wrap point stays sub-perceptual at that speed.
+ */
+export function ShowcaseMarquee() {
   const track = [...SHOWCASE_CARDS, ...SHOWCASE_CARDS];
   return (
     <section className="py-16 sm:py-24 overflow-hidden">
@@ -1626,24 +1655,20 @@ function ShowcaseMarquee() {
         </h2>
       </div>
 
-      <div className="relative">
+      <div className="relative" style={{ perspective: '1200px' }}>
         <div className="pointer-events-none absolute inset-y-0 left-0 w-16 sm:w-32 bg-gradient-to-r from-white to-transparent z-10" />
         <div className="pointer-events-none absolute inset-y-0 right-0 w-16 sm:w-32 bg-gradient-to-l from-white to-transparent z-10" />
-        <motion.div
-          className="flex gap-4 sm:gap-6"
-          animate={{ x: ['0%', '-50%'] }}
-          transition={{ duration: 9, repeat: Infinity, ease: 'linear' }}
-        >
+        <div className="flex gap-4 sm:gap-6 w-max animate-marquee-testimonials" style={{ transformStyle: 'preserve-3d' }}>
           {track.map((c, i) => (
-            <ShowcaseCard key={i} {...c} index={i} />
+            <ShowcaseCard key={i} {...c} index={i} total={SHOWCASE_CARDS.length} />
           ))}
-        </motion.div>
+        </div>
       </div>
     </section>
   );
 }
 
-function HowTimeline() {
+export function HowTimeline() {
   const rootRef = useRef(null);
   const { scrollYProgress } = useScroll({
     target: rootRef,
@@ -1798,7 +1823,7 @@ function PaymentLogoChip({ m }) {
   );
 }
 
-function Coverage() {
+export function Coverage() {
   const { countries } = useCountries();
   const { methods } = usePaymentMethods();
   const active = countries.filter((c) => c.active);
@@ -1860,7 +1885,7 @@ function Coverage() {
  * image block glides in from one side while the copy glides in from the
  * other — instead of the old small centered thumbnail.
  */
-function PricingTeaser() {
+export function PricingTeaser() {
   const sectionRef = useRef(null);
   const { scrollYProgress } = useScroll({
     target: sectionRef,
@@ -1920,7 +1945,7 @@ function useIsFinePointer() {
   return fine;
 }
 
-function SparkleCursor() {
+export function SparkleCursor() {
   const fine = useIsFinePointer();
   const [sparkles, setSparkles] = useState([]);
   const idRef = useRef(0);
@@ -1968,7 +1993,7 @@ function SparkleCursor() {
   );
 }
 
-function Home() {
+function Home2() {
   return (
     <>
       <SparkleCursor />
@@ -1987,4 +2012,4 @@ function Home() {
   );
 }
 
-export default Home;
+export default Home2;

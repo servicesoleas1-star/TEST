@@ -1,23 +1,25 @@
 import { Routes, Route } from 'react-router-dom';
-import Home from './pages/Home';
+import Home1 from './pages/Home1';
+import Home2 from './pages/Home2';
 import Tarifs from './pages/Tarifs';
 import Confidentialite from './pages/Confidentialite';
 import Connexion from './pages/Connexion';
 import Contact from './pages/Contact';
-// Temporary client preview — delete this import + its <Route> below and the
-// src/pages/Foldcraft.jsx file to remove it entirely.
-import Foldcraft from './pages/Foldcraft';
 
 function App() {
   return (
     <div className="min-h-screen bg-white">
       <Routes>
-        <Route path="/" element={<Home />} />
+        {/* Two homepage variants: `/` is Proposition 1 (parallax stacked
+            panels), `/v2` is Proposition 2 (the original ZUI 6-universes
+            zoom animation). Everything below the storytelling section is
+            identical between the two. */}
+        <Route path="/" element={<Home1 />} />
+        <Route path="/v2" element={<Home2 />} />
         <Route path="/tarifs" element={<Tarifs />} />
         <Route path="/confidentialite" element={<Confidentialite />} />
         <Route path="/connexion" element={<Connexion />} />
         <Route path="/contact" element={<Contact />} />
-        <Route path="/foldcraft" element={<Foldcraft />} />
       </Routes>
     </div>
   );
