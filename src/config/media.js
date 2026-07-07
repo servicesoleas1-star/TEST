@@ -25,20 +25,22 @@ const u = (id, w = 900) =>
   `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`;
 
 export const illustration = {
-  // Hero + event families — reverted to the long-proven Unsplash IDs. A
-  // batch swap to "fresher" IDs broke several images on the live site
-  // (this sandbox's network policy blocks images.unsplash.com outbound, so
-  // new IDs can never be curl-verified before shipping) — stick to IDs
-  // that have already rendered correctly for a long time.
-  ticketing: u('1470229722913-7c0e2dbbafd3'),
-  votes: u('1540575467063-178a50c2df87'),
-  donations: u('1593113630400-ea4288922497'),
-  crowdfunding: u('1521737604893-d14cc237f11d'),
-  contests: u('1513151233558-d860c5398176'),
-  sponsoring: u('1521737711867-e3b97375f902'),
-  // How it works — fresh set for each of the four steps.
-  create: u('1454165804606-c3d57bc86b40'),      // laptop + hands creating
-  configure: u('1531403009284-440f080d1e12'),   // adjusting settings on screen
+  // Hero + event families — switched to the client's own local photos.
+  // This sandbox's network policy blocks every image host (Unsplash,
+  // Pexels, Pixabay, Wikimedia all fail outbound), so a new external URL
+  // can never be verified before shipping. Local assets are guaranteed to
+  // render and are real photos from the client's own events, which is a
+  // strictly better fit than a guessed stock ID anyway.
+  ticketing: '/concert-stadium.jpg',
+  votes: '/election-vote.jpg',
+  donations: '/donation-coins.jpg',
+  crowdfunding: '/community-hands.jpg',
+  sponsoring: '/event-venue.jpg',
+  contests: '/contest-trophy.jpg',
+  // How it works — steps 1 & 2 switched to local assets; step 3 (share)
+  // left untouched per instruction.
+  create: '/vote-icon-laptop.jpg',
+  configure: '/ticket-icon.jpg',
   share: u('1611926653458-09294b3142bf'),       // phone share / messaging
   // Local asset (guaranteed to render, no external dependency) standing in
   // for "billets français" — coins/currency close-up.

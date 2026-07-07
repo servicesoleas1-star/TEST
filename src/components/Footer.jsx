@@ -76,9 +76,8 @@ function Footer() {
         loop
         playsInline
         aria-hidden
-        className="absolute inset-0 w-full h-full object-cover opacity-70"
+        className="absolute inset-0 w-full h-full object-cover opacity-55"
         src="/hero-video.mp4"
-        poster="/hero-poster.jpg"
       />
       <div className="absolute inset-0 bg-ink-100/60" />
       {/* Compact CTA banner — logo, then "De l'idée à l'événement, Un seul clic" — always one horizontal row */}
