@@ -103,21 +103,26 @@ const PANELS = [
   },
 ];
 
-// Timeline formula constants — the exact values from the reference: a
-// 0.85 stagger (15% overlap), a full unit-duration rise/push, and a -30%
-// recede for whichever panel is being covered.
-const STAGGER = 0.85;
+// Timeline formula constants.
 const RISE_DURATION = 1;
+// Panel 0 is a hard stop: nothing else starts moving until it has FULLY
+// covered the screen and held there for a beat — a clear "door slamming
+// shut" moment, not an immediate hand-off into panel 1.
+const HOLD_AFTER_INTRO = 0.35;
+// From panel 1 onward, a panel must cover ~90% of the screen before the
+// next one is even allowed to start peeking in (a 10% overlap, not the
+// much larger gap that made every panel feel too small/rushed).
+const STAGGER = 0.9;
 const PUSH_Y = -30; // percent — how far a covered panel recedes
 const META_DURATION = 0.15;
 const META_OFFSET = 0.05; // exit starts at intersect-0.05, enter at intersect+0.05
-// The push tween for panel i-1 starts before its own rise tween finishes
-// (that's the intentional 15% overlap). GSAP's implicit "from" for a
-// chained .to() on the same property uses the earlier tween's END value
-// (0), not its live-interpolated value at that moment — so without an
-// explicit start point the push snapped instantly from ~15% to 0% the
+// The push tween for panel i-1 (i>=2) starts before its own rise tween
+// finishes (that's the intentional 10% overlap). GSAP's implicit "from"
+// for a chained .to() on the same property uses the earlier tween's END
+// value (0), not its live-interpolated value at that moment — so without
+// an explicit start point the push snapped instantly from ~10% to 0% the
 // moment it kicked in. This is the rise's actual live position at the
-// overlap point (it's still 15% of the way from 100 to 0 at that instant).
+// overlap point (it's still 10% of the way from 100 to 0 at that instant).
 const PUSH_FROM_Y = 100 * (1 - STAGGER / RISE_DURATION);
 
 function StaticHeroLayer() {
@@ -207,10 +212,14 @@ function PanelContent({ panel, contentRef }) {
   return (
     <div
       ref={contentRef}
-      className="absolute inset-0 h-full flex flex-col items-center justify-center text-center px-6 sm:px-10"
+      className="absolute inset-0 h-full flex flex-col items-center justify-center px-6 sm:px-10"
       style={{ willChange: 'opacity' }}
     >
-      <div className="max-w-3xl flex flex-col items-center">
+      {/* The block itself is always centered horizontally on the page. On
+          mobile the text inside reads left-to-right like normal prose
+          (not each line individually centered); desktop keeps the
+          centered "poster" look. The CTA row stays centered either way. */}
+      <div className="max-w-3xl w-full flex flex-col items-start sm:items-center text-left sm:text-center">
         <span
           className={`btn ${btnClass} !inline-flex !px-4 !py-1.5 !text-xs sm:!text-sm mb-6 sm:mb-8`}
           style={{ transform: 'rotate(-3deg)' }}
@@ -235,7 +244,7 @@ function PanelContent({ panel, contentRef }) {
         <p className="text-white/85 text-sm sm:text-base md:text-lg leading-relaxed max-w-xl normal-case mb-8 sm:mb-10">
           {panel.body}
         </p>
-        <div className="flex flex-col items-center gap-5 sm:gap-6">
+        <div className="self-center flex flex-col items-center gap-5 sm:gap-6">
           <a href="/inscription" className={`btn ${btnClass}`}>
             {panel.cta}
             <span aria-hidden>→</span>
@@ -284,23 +293,41 @@ function ParallaxStory() {
       tl.to(panels[0], { yPercent: 0, duration: RISE_DURATION }, 0);
       tl.to(contents[0], { yPercent: 0, duration: RISE_DURATION }, 0);
 
+      // Panel 0 -> panel 1 has NO overlap at all: panel 1 only starts once
+      // panel 0 has fully rested (plus a short hold), so the first hand-off
+      // reads as a hard, deliberate stop rather than a hand-off in motion.
+      const startTimes = [0];
+      startTimes[1] = RISE_DURATION + HOLD_AFTER_INTRO;
+      for (let i = 2; i < PANELS.length; i++) {
+        startTimes[i] = startTimes[i - 1] + STAGGER;
+      }
+
       PANELS.forEach((_, i) => {
         if (i === 0) return;
-        const startTime = i * STAGGER;
+        const startTime = startTimes[i];
+        const hasOverlap = i >= 2; // panel 0 -> 1 never overlaps (see above)
 
         tl.to(panels[i], { yPercent: 0, duration: RISE_DURATION }, startTime);
-        // `immediateRender: false` is essential here: `fromTo()` defaults to
-        // immediateRender:true, which applies its FROM value to the DOM
-        // synchronously the instant this call runs (at build time, long
-        // before the timeline ever plays) — that clobbered the earlier
-        // `gsap.set(panels, { yPercent: 100 })` baseline before the rise
-        // tween even got its first real render, corrupting the whole rise.
-        tl.fromTo(
-          panels[i - 1],
-          { yPercent: PUSH_FROM_Y },
-          { yPercent: PUSH_Y, duration: RISE_DURATION, immediateRender: false },
-          startTime
-        );
+        if (hasOverlap) {
+          // `immediateRender: false` is essential here: `fromTo()` defaults
+          // to immediateRender:true, which applies its FROM value to the
+          // DOM synchronously the instant this call runs (at build time,
+          // long before the timeline ever plays) — that clobbered the
+          // earlier `gsap.set(panels, { yPercent: 100 })` baseline before
+          // the rise tween even got its first real render, corrupting the
+          // whole rise.
+          tl.fromTo(
+            panels[i - 1],
+            { yPercent: PUSH_FROM_Y },
+            { yPercent: PUSH_Y, duration: RISE_DURATION, immediateRender: false },
+            startTime
+          );
+        } else {
+          // No overlap for this one — panel 0 is already fully at rest
+          // (yPercent 0) by the time this starts, so a plain `.to()` picks
+          // up correctly from there with no explicit "from" needed.
+          tl.to(panels[i - 1], { yPercent: PUSH_Y, duration: RISE_DURATION }, startTime);
+        }
 
         const intersectTime = startTime + RISE_DURATION * 0.5;
         tl.to(
@@ -318,7 +345,7 @@ function ParallaxStory() {
         tl.set(contents[i], { pointerEvents: 'auto', attr: { 'aria-hidden': 'false' } }, intersectTime);
       });
 
-      const totalUnits = (PANELS.length - 1) * STAGGER + RISE_DURATION;
+      const totalUnits = startTimes[PANELS.length - 1] + RISE_DURATION;
 
       ScrollTrigger.create({
         animation: tl,
