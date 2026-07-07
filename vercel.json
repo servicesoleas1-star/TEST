@@ -11,13 +11,5 @@
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
       ]
     }
-  ],
-  "functions": {
-    "api/[...path].js": {
-      "includeFiles": "moledi-backend/config/**"
-    }
-  },
-  "crons": [
-    { "path": "/api/internal/cron/expire-pending", "schedule": "*/10 * * * *" }
   ]
 }
