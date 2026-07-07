@@ -5,40 +5,8 @@ import Tarifs from './pages/Tarifs';
 import Confidentialite from './pages/Confidentialite';
 import Connexion from './pages/Connexion';
 import Contact from './pages/Contact';
-import EmailVerification from './pages/EmailVerification';
-import ProfileCompletion from './pages/ProfileCompletion';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import PasswordChanged from './pages/PasswordChanged';
-import Poll from './pages/Poll';
-import PaidVoteTunnel from './pages/PaidVoteTunnel';
-import FreeVoteTunnel from './pages/FreeVoteTunnel';
-import OrganizerDashboard from './pages/OrganizerDashboard';
-import OrganizerSettings from './pages/OrganizerSettings';
-import ManageCandidates from './pages/ManageCandidates';
-import ManageUniqueCodes from './pages/ManageUniqueCodes';
-import CampaignAnalytics from './pages/CampaignAnalytics';
-import SupportTickets from './pages/SupportTickets';
-import TicketDetail from './pages/TicketDetail';
-import WhatsAppFloatingButton from './components/WhatsAppFloatingButton';
-import { getPlatformConfig } from './config/PlatformConfig';
-
-function NotFound() {
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center text-center px-5 bg-white">
-      <h1 className="text-3xl font-bold mb-2">404 — Page introuvable</h1>
-      <p className="opacity-70">
-        <a href="/contact" className="text-primary underline">
-          Retour à la page de contact
-        </a>
-      </p>
-    </div>
-  );
-}
 
 function App() {
-  const { supportWhatsAppNumber } = getPlatformConfig();
-
   return (
     <div className="min-h-screen bg-white">
       <Routes>
@@ -52,31 +20,7 @@ function App() {
         <Route path="/confidentialite" element={<Confidentialite />} />
         <Route path="/connexion" element={<Connexion />} />
         <Route path="/contact" element={<Contact />} />
-
-        {/* Imported from the team's develop branch */}
-        <Route path="/inscription/verification" element={<EmailVerification />} />
-        <Route path="/inscription/profil" element={<ProfileCompletion />} />
-        <Route path="/mot-de-passe-oublie" element={<ForgotPassword />} />
-        <Route path="/reinitialiser-mot-de-passe" element={<ResetPassword />} />
-        <Route path="/mot-de-passe-modifie" element={<PasswordChanged />} />
-        <Route path="/vote/:slug" element={<Poll />} />
-        <Route path="/vote/:slug/voter/payer" element={<PaidVoteTunnel />} />
-        <Route path="/vote/:slug/voter/gratuit" element={<FreeVoteTunnel />} />
-        <Route path="/organisateur/tableau-de-bord" element={<OrganizerDashboard />} />
-        <Route path="/organisateur/parametres" element={<OrganizerSettings />} />
-        <Route path="/organisateur/campagnes/:campaignId/candidats" element={<ManageCandidates />} />
-        <Route path="/organisateur/campagnes/:campaignId/codes-uniques" element={<ManageUniqueCodes />} />
-        <Route path="/organisateur/campagnes/:campaignId/analytics" element={<CampaignAnalytics />} />
-        <Route path="/support/tickets" element={<SupportTickets />} />
-        <Route path="/support/tickets/:ticketId" element={<TicketDetail />} />
-
-        <Route path="*" element={<NotFound />} />
       </Routes>
-
-      <WhatsAppFloatingButton
-        phoneNumber={supportWhatsAppNumber}
-        message="Bonjour, j'ai besoin d'aide sur Moledi Events."
-      />
     </div>
   );
 }
