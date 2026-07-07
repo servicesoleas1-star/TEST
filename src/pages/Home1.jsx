@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
@@ -125,6 +126,37 @@ const META_OFFSET = 0.05; // exit starts at intersect-0.05, enter at intersect+0
 // overlap point (it's still 10% of the way from 100 to 0 at that instant).
 const PUSH_FROM_Y = 100 * (1 - STAGGER / RISE_DURATION);
 
+// Word-by-word reveal for the headline — same rise + blur-out pattern used
+// on Home2's hero, so the two homepage variants share a family look.
+function WordsReveal({ text, delay = 0, className = '', wordClassName = () => '' }) {
+  const words = text.split(' ');
+  return (
+    <span className={className}>
+      {words.map((w, i) => (
+        <motion.span
+          key={i}
+          className={`inline-block whitespace-pre ${wordClassName(w, i)}`}
+          initial={{ opacity: 0, y: 22, filter: 'blur(6px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1], delay: delay + i * 0.06 }}
+        >
+          {w}
+          {i < words.length - 1 ? ' ' : ''}
+        </motion.span>
+      ))}
+    </span>
+  );
+}
+
+const heroWrap = {
+  hidden: {},
+  show: { transition: { delayChildren: 1.1, staggerChildren: 0.12 } },
+};
+const heroRise = {
+  hidden: { opacity: 0, y: 18 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
+};
+
 function StaticHeroLayer() {
   const videoRef = useRef(null);
 
@@ -134,7 +166,20 @@ function StaticHeroLayer() {
     const id = requestAnimationFrame(() => {
       v.play().catch(() => {});
     });
-    return () => cancelAnimationFrame(id);
+    // Some mobile browsers auto-pause offscreen autoplaying videos and
+    // never resume them on their own — force a resume every time this
+    // video re-enters the viewport (e.g. scrolling back up to the top).
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) v.play().catch(() => {});
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(v);
+    return () => {
+      cancelAnimationFrame(id);
+      observer.disconnect();
+    };
   }, []);
 
   return (
@@ -160,24 +205,36 @@ function StaticHeroLayer() {
             className="text-white leading-[1.06] sm:leading-[1.0]"
             style={{ fontSize: 'clamp(2.1rem, 8vw, 5.2rem)' }}
           >
-            <span className="block">De l'idée à l'événement,</span>
-            <span className="block bg-gradient-to-r from-primary-300 to-primary-100 bg-clip-text text-transparent">
-              en un clic
-            </span>
+            <WordsReveal text="De l'idée à l'événement," delay={0.3} className="block" />
+            <WordsReveal
+              text="en un clic"
+              delay={0.75}
+              className="block"
+              wordClassName={() => 'bg-gradient-to-r from-primary-300 to-primary-100 bg-clip-text text-transparent'}
+            />
           </h1>
-          <p className="mt-6 sm:mt-7 text-sm sm:text-lg md:text-xl text-white/85 normal-case max-w-xl sm:max-w-2xl mx-auto">
-            Chaque événement raconte une histoire. Moledi Event vous aide à
-            l'écrire, du premier billet, du premier vote, du premier don, au
-            dernier applaudissement.
-          </p>
-          <div className="mt-8 sm:mt-10 flex flex-row items-stretch justify-center gap-3 sm:gap-4 px-2">
-            <a href="/inscription" className="btn btn-primary flex-1 sm:flex-initial px-5 sm:px-8 py-3 sm:py-3.5">
-              Créer un événement
-            </a>
-            <a href="/evenements" className="btn btn-light flex-1 sm:flex-initial px-5 sm:px-8 py-3 sm:py-3.5">
-              Parcourir les événements
-            </a>
-          </div>
+
+          <motion.div variants={heroWrap} initial="hidden" animate="show">
+            <motion.p
+              variants={heroRise}
+              className="mt-6 sm:mt-7 text-sm sm:text-lg md:text-xl text-white/85 normal-case max-w-xl sm:max-w-2xl mx-auto"
+            >
+              Chaque événement raconte une histoire. Moledi Event vous aide à
+              l'écrire, du premier billet, du premier vote, du premier don, au
+              dernier applaudissement.
+            </motion.p>
+            <motion.div
+              variants={heroRise}
+              className="mt-8 sm:mt-10 flex flex-row items-stretch justify-center gap-3 sm:gap-4 px-2"
+            >
+              <a href="/inscription" className="btn btn-primary flex-1 sm:flex-initial px-5 sm:px-8 py-3 sm:py-3.5">
+                Créer un événement
+              </a>
+              <a href="/evenements" className="btn btn-light flex-1 sm:flex-initial px-5 sm:px-8 py-3 sm:py-3.5">
+                Parcourir les événements
+              </a>
+            </motion.div>
+          </motion.div>
         </div>
       </div>
     </div>
