@@ -37,10 +37,11 @@ export const illustration = {
   crowdfunding: '/community-hands.jpg',
   sponsoring: '/event-venue.jpg',
   contests: '/contest-trophy.jpg',
-  // How it works — steps 1 (create) & 3 (share) confirmed fine, left as
-  // they are. Steps 2 (configure) & 4 (cashout) swapped for a better fit.
-  create: '/vote-icon-laptop.jpg',
-  configure: '/event-venue.jpg',
+  // How it works — step 3 (share) confirmed fine, left as is. Step 1
+  // (create/choose a type) and step 2 (configure options, not a venue)
+  // swapped for a better fit; step 4 (cashout) confirmed fine.
+  create: '/events-collage-light.jpg',
+  configure: '/vote-icon-button.jpg',
   share: u('1611926653458-09294b3142bf'),       // phone share / messaging
   cashout: u('1556742049-0cfed4f6a45d'),        // mobile payment confirmation
 

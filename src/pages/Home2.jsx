@@ -1502,7 +1502,7 @@ export function FeaturedMarquee() {
               Sur la plateforme
             </p>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl text-ink-900 mb-8">
-              Vibrez au rythme des événements qui se passent près de vous.
+              Découvrez les événements passés, en cours et à venir sur la plateforme.
             </h2>
             <a href="/evenements" className="btn btn-secondary">
               Découvrir tous les événements
@@ -1598,12 +1598,12 @@ const SHOWCASE_CARDS = [
   { image: '/concert-singer.jpg', text: 'Pour toutes vos scènes ouvertes', color: '#FF6A00' },
   { image: '/africa-network.jpg', text: 'Pour toutes vos conférences panafricaines', color: '#2B6BFF' },
   { image: uImg('1584464491033-06628f3a6b7b'), text: 'Pour tous vos anniversaires', color: '#FF6A00' },
-  { image: uImg('1522543979324-31b1e2fbe373'), text: 'Pour tous vos tournois sportifs', color: '#2B6BFF' },
+  { image: '/concert-stadium.jpg', text: 'Pour tous vos tournois sportifs', color: '#2B6BFF' },
   { image: '/miss-universe.jpg', text: 'Pour toutes vos élections de reine de beauté', color: '#FF6A00' },
   { image: uImg('1531058020387-3be344556be6'), text: 'Pour tous vos lancements de projet', color: '#2B6BFF' },
   { image: '/community-hands.jpg', text: 'Pour toutes vos levées de fonds', color: '#FF6A00' },
   { image: '/dance-contest.jpg', text: 'Pour toutes vos soirées dansantes', color: '#2B6BFF' },
-  { image: uImg('1509721434272-b79147e0e708'), text: 'Pour toutes vos conventions', color: '#FF6A00' },
+  { image: '/events-collage-tech.jpg', text: 'Pour toutes vos conventions', color: '#FF6A00' },
 ];
 
 function ShowcaseCard({ image, text, color, index, total }) {

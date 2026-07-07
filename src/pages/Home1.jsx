@@ -111,6 +111,14 @@ const RISE_DURATION = 1;
 const PUSH_Y = -30; // percent — how far a covered panel recedes
 const META_DURATION = 0.15;
 const META_OFFSET = 0.05; // exit starts at intersect-0.05, enter at intersect+0.05
+// The push tween for panel i-1 starts before its own rise tween finishes
+// (that's the intentional 15% overlap). GSAP's implicit "from" for a
+// chained .to() on the same property uses the earlier tween's END value
+// (0), not its live-interpolated value at that moment — so without an
+// explicit start point the push snapped instantly from ~15% to 0% the
+// moment it kicked in. This is the rise's actual live position at the
+// overlap point (it's still 15% of the way from 100 to 0 at that instant).
+const PUSH_FROM_Y = 100 * (1 - STAGGER / RISE_DURATION);
 
 function StaticHeroLayer() {
   const videoRef = useRef(null);
@@ -281,7 +289,18 @@ function ParallaxStory() {
         const startTime = i * STAGGER;
 
         tl.to(panels[i], { yPercent: 0, duration: RISE_DURATION }, startTime);
-        tl.to(panels[i - 1], { yPercent: PUSH_Y, duration: RISE_DURATION }, startTime);
+        // `immediateRender: false` is essential here: `fromTo()` defaults to
+        // immediateRender:true, which applies its FROM value to the DOM
+        // synchronously the instant this call runs (at build time, long
+        // before the timeline ever plays) — that clobbered the earlier
+        // `gsap.set(panels, { yPercent: 100 })` baseline before the rise
+        // tween even got its first real render, corrupting the whole rise.
+        tl.fromTo(
+          panels[i - 1],
+          { yPercent: PUSH_FROM_Y },
+          { yPercent: PUSH_Y, duration: RISE_DURATION, immediateRender: false },
+          startTime
+        );
 
         const intersectTime = startTime + RISE_DURATION * 0.5;
         tl.to(
