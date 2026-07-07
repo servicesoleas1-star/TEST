@@ -18,30 +18,26 @@ import {
 gsap.registerPlugin(ScrollTrigger);
 
 /**
- * Storytelling section — "push parallax stack" (à la floema.com).
+ * Storytelling section — "push parallax stack" (à la floema.com), ported
+ * as literally as possible from the client's own reference implementation
+ * (GSAP timeline + ScrollTrigger scrub + Lenis):
  *
- *  - ONE pinned, fixed-camera section. The TEXT is on its own layer that
- *    never moves — only its opacity/content crossfades between panels.
- *    Only the IMAGE layers slide/push; text does not travel with them
- *    (an image visually passes behind the still text as it moves).
- *  - Panel 0 is a special intro: its image starts small (scaled down,
- *    centered) and grows until it fills the whole screen — like a photo
- *    being brought up close — then locks in place, fully covering the
- *    static hero underneath. Only once that's done does the real
- *    scroll-driven story begin.
- *  - From panel 1 onward: each panel rises from below (`yPercent: 100` ->
- *    `0`) while the panel before it gets pushed further back
- *    (`yPercent: -45`) — two images that appear to shove each other up the
- *    screen. The next panel only starts rising once the current push is
- *    almost finished (a small overlap, not an early cut), so the hand-off
- *    reads as a continuous shove rather than an abrupt swap.
- *  - Text metamorphosis: exactly at the geometric midpoint of that
- *    hand-off, the outgoing panel's text fades out and the incoming one
- *    fades in, in the exact same on-screen position — the numbering,
- *    headline and details change, but nothing physically moves.
+ *  - ONE pinned, fixed-camera section, three stacked layers: a static hero
+ *    at the bottom, an image layer in the middle, a text layer on top.
+ *  - Panel 0 is the only panel whose text+mini-chips are NOT fixed: they
+ *    ride up together with panel 0's own image (both go from
+ *    `yPercent: 100` to `0` over the same duration), covering the static
+ *    hero underneath as one solid block — no crossfade for this one.
+ *  - From panel 1 onward, `startTime = i * 0.85` (a 15% overlap) — the
+ *    panel rises (`yPercent: 100` -> `0`) while the previous one is pushed
+ *    further back (`yPercent: -30`). Once a panel is at rest, its text sits
+ *    in a fixed position and never moves again — only opacity (plus a
+ *    small ±30px shift) crossfades it in/out, exactly at
+ *    `intersectTime = startTime + 0.5`, the moment the incoming image's
+ *    edge crosses the screen's vertical centre.
  *  - Lenis drives the actual smooth-scroll feel; GSAP's ticker drives
- *    Lenis's raf loop (the documented Lenis+GSAP integration) so
- *    ScrollTrigger and the smoothing never fight each other.
+ *    Lenis's raf loop (the integration Lenis's own docs recommend for use
+ *    alongside GSAP/ScrollTrigger) so the two never fight for control.
  */
 
 const PANELS = [
@@ -107,13 +103,14 @@ const PANELS = [
   },
 ];
 
-// Timeline formula constants — see the file-level comment above.
-const INTRO_DURATION = 1; // panel 0's scale-to-fullscreen intro
-const STAGGER = 0.92; // next panel starts this far into the previous rise
+// Timeline formula constants — the exact values from the reference: a
+// 0.85 stagger (15% overlap), a full unit-duration rise/push, and a -30%
+// recede for whichever panel is being covered.
+const STAGGER = 0.85;
 const RISE_DURATION = 1;
-const PUSH_Y = -45; // percent — how far a covered panel recedes
+const PUSH_Y = -30; // percent — how far a covered panel recedes
 const META_DURATION = 0.15;
-const SCROLL_PX_PER_UNIT = 1100;
+const META_OFFSET = 0.05; // exit starts at intersect-0.05, enter at intersect+0.05
 
 function StaticHeroLayer() {
   const videoRef = useRef(null);
@@ -266,42 +263,55 @@ function ParallaxStory() {
       const panels = panelRefs.current;
       const contents = contentRefs.current;
 
-      gsap.set(panels[0], { scale: 0.4 });
-      gsap.set(panels.slice(1), { yPercent: 100 });
-      // Panel 0's text is visible from the very start (nothing to hand off
-      // from except the static hero) and never moves.
-      gsap.set(contents[0], { opacity: 1, pointerEvents: 'auto' });
+      // Every panel starts fully below the viewport.
+      gsap.set(panels, { yPercent: 100 });
+      // Panel 0's content rides up together with its own image (frame-0
+      // exception — nothing to hand off from except the static hero), so it
+      // starts hidden below the screen exactly like its image.
+      gsap.set(contents[0], { yPercent: 100, opacity: 1, pointerEvents: 'auto' });
+      // Every other panel's content is fixed in place from the start —
+      // it never travels, only opacity (+ a small px shift) crossfades it.
       gsap.set(contents.slice(1), { opacity: 0, pointerEvents: 'none', attr: { 'aria-hidden': 'true' } });
 
       const tl = gsap.timeline({ defaults: { ease: 'none' } });
 
-      // Panel 0: image grows from a small centred frame to full-screen,
-      // then holds — this is the "wait for it to fill the page" beat
-      // before any real scroll-driven motion starts.
-      tl.to(panels[0], { scale: 1, duration: INTRO_DURATION, ease: 'power2.out' }, 0);
+      // Frame-0 exception: image + text/chips rise together, in lockstep,
+      // to cover the static hero underneath as one solid block.
+      tl.to(panels[0], { yPercent: 0, duration: RISE_DURATION }, 0);
+      tl.to(contents[0], { yPercent: 0, duration: RISE_DURATION }, 0);
 
       PANELS.forEach((_, i) => {
         if (i === 0) return;
-        const startTime = INTRO_DURATION + (i - 1) * STAGGER;
+        const startTime = i * STAGGER;
 
         tl.to(panels[i], { yPercent: 0, duration: RISE_DURATION }, startTime);
         tl.to(panels[i - 1], { yPercent: PUSH_Y, duration: RISE_DURATION }, startTime);
 
         const intersectTime = startTime + RISE_DURATION * 0.5;
-        const half = META_DURATION / 2;
-        tl.to(contents[i - 1], { opacity: 0, duration: META_DURATION, ease: 'power2.inOut' }, intersectTime - half);
-        tl.to(contents[i], { opacity: 1, duration: META_DURATION, ease: 'power2.inOut' }, intersectTime - half);
+        tl.to(
+          contents[i - 1],
+          { y: -30, opacity: 0, duration: META_DURATION, ease: 'power2.inOut' },
+          intersectTime - META_OFFSET
+        );
+        tl.fromTo(
+          contents[i],
+          { y: 30, opacity: 0 },
+          { y: 0, opacity: 1, duration: META_DURATION, ease: 'power2.inOut' },
+          intersectTime + META_OFFSET
+        );
         tl.set(contents[i - 1], { pointerEvents: 'none', attr: { 'aria-hidden': 'true' } }, intersectTime);
         tl.set(contents[i], { pointerEvents: 'auto', attr: { 'aria-hidden': 'false' } }, intersectTime);
       });
 
-      const totalUnits = INTRO_DURATION + (PANELS.length - 2) * STAGGER + RISE_DURATION;
+      const totalUnits = (PANELS.length - 1) * STAGGER + RISE_DURATION;
 
       ScrollTrigger.create({
         animation: tl,
         trigger: sectionRef.current,
         start: 'top top',
-        end: () => `+=${totalUnits * SCROLL_PX_PER_UNIT}`,
+        // Scaled off the viewport height (like the reference's `+=600%`
+        // for 5 panels), so the pacing stays consistent across screen sizes.
+        end: () => `+=${totalUnits * window.innerHeight * 1.35}`,
         scrub: 1,
         pin: true,
         pinSpacing: true,
