@@ -66,22 +66,21 @@ const socials = [
 function Footer() {
   return (
     <footer className="relative bg-ink-100 text-ink-700 overflow-hidden">
-      {/* Background hero-video reused softly (heavy blur + low opacity) so
-          the footer doesn't feel disconnected from the top of the page.
-          The video sits behind everything and no text overlaps it, so
-          legibility isn't an issue even if a phone throttles playback. */}
+      {/* Background hero-video reused so the footer doesn't feel disconnected
+          from the top of the page — clearly visible (not just a hinted
+          texture) but still read as a background: no blur, an ink-tinted
+          overlay on top keeps every line of text legible over it. */}
       <video
         autoPlay
         muted
         loop
         playsInline
         aria-hidden
-        className="absolute inset-0 w-full h-full object-cover opacity-15"
-        style={{ filter: 'blur(14px)' }}
+        className="absolute inset-0 w-full h-full object-cover opacity-70"
         src="/hero-video.mp4"
         poster="/hero-poster.jpg"
       />
-      <div className="absolute inset-0 bg-ink-100/70" />
+      <div className="absolute inset-0 bg-ink-100/60" />
       {/* Compact CTA banner — logo, then "De l'idée à l'événement, Un seul clic" — always one horizontal row */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}

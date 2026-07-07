@@ -25,19 +25,24 @@ const u = (id, w = 900) =>
   `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&q=80`;
 
 export const illustration = {
-  // Hero + event families — replaced with images the client explicitly
-  // asked for (fresh, contextual, not the previously repeated Unsplash IDs).
-  ticketing: u('1501281668745-f7f57925c3b4'),   // concert crowd with lights
-  votes: u('1541872703-74c5e44368f4'),           // ballot / voting hands
-  donations: u('1488521787991-ed7bbaae773c'),   // hands holding coins
+  // Hero + event families — reverted to the long-proven Unsplash IDs. A
+  // batch swap to "fresher" IDs broke several images on the live site
+  // (this sandbox's network policy blocks images.unsplash.com outbound, so
+  // new IDs can never be curl-verified before shipping) — stick to IDs
+  // that have already rendered correctly for a long time.
+  ticketing: u('1470229722913-7c0e2dbbafd3'),
+  votes: u('1540575467063-178a50c2df87'),
+  donations: u('1593113630400-ea4288922497'),
   crowdfunding: u('1521737604893-d14cc237f11d'),
-  contests: u('1567019740-6a3e0f6c1c5c'),       // trophy on stage
-  sponsoring: u('1552664730-d307ca884978'),
+  contests: u('1513151233558-d860c5398176'),
+  sponsoring: u('1521737711867-e3b97375f902'),
   // How it works — fresh set for each of the four steps.
-  create: u('1499750310107-5fef28a66643'),      // laptop + hands creating
-  configure: u('1521791136064-7986c2920216'),   // adjusting settings on screen
-  share: u('1611262588024-d12430b98920'),       // phone share / messaging
-  cashout: u('1580519542036-c47de6196ba5'),     // mobile money transaction
+  create: u('1454165804606-c3d57bc86b40'),      // laptop + hands creating
+  configure: u('1531403009284-440f080d1e12'),   // adjusting settings on screen
+  share: u('1611926653458-09294b3142bf'),       // phone share / messaging
+  // Local asset (guaranteed to render, no external dependency) standing in
+  // for "billets français" — coins/currency close-up.
+  cashout: '/donation-coins.jpg',
   // Pricing teaser — a stack of receipts / calculator, not a stock desk.
   pricing: u('1554224155-6726b3ff858f'),
   // Sub-cause imagery (Système de dons — Zoom-2 cards)
