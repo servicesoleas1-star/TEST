@@ -166,7 +166,7 @@ function SiteHeader({ activeHref }) {
             variants={item}
             onClick={() => setOpen((o) => !o)}
             aria-label={open ? 'Fermer le menu' : 'Ouvrir le menu'}
-            className="relative w-11 h-11 flex items-center justify-center rounded-lg text-ink-900 hover:bg-ink-100 transition-colors"
+            className="hamburger-btn relative w-11 h-11 flex items-center justify-center rounded-lg text-ink-900 hover:bg-ink-100 transition-colors"
           >
             <span className="relative w-5 h-4 block">
               <motion.span

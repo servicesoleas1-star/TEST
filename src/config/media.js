@@ -37,14 +37,13 @@ export const illustration = {
   crowdfunding: '/community-hands.jpg',
   sponsoring: '/event-venue.jpg',
   contests: '/contest-trophy.jpg',
-  // How it works — steps 1 & 2 switched to local assets; step 3 (share)
-  // left untouched per instruction.
+  // How it works — steps 1 (create) & 3 (share) confirmed fine, left as
+  // they are. Steps 2 (configure) & 4 (cashout) swapped for a better fit.
   create: '/vote-icon-laptop.jpg',
-  configure: '/ticket-icon.jpg',
+  configure: '/event-venue.jpg',
   share: u('1611926653458-09294b3142bf'),       // phone share / messaging
-  // Local asset (guaranteed to render, no external dependency) standing in
-  // for "billets français" — coins/currency close-up.
-  cashout: '/donation-coins.jpg',
+  cashout: u('1556742049-0cfed4f6a45d'),        // mobile payment confirmation
+
   // Pricing teaser — a stack of receipts / calculator, not a stock desk.
   pricing: u('1554224155-6726b3ff858f'),
   // Sub-cause imagery (Système de dons — Zoom-2 cards)
