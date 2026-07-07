@@ -1499,7 +1499,7 @@ export function FeaturedMarquee() {
             className="order-1 lg:order-2 flex-1 min-w-0 text-center lg:text-left"
           >
             <p className="text-primary font-semibold tracking-[0.2em] uppercase text-[10px] mb-2">
-              En ce moment
+              Sur la plateforme
             </p>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl text-ink-900 mb-8">
               Vibrez au rythme des événements qui se passent près de vous.

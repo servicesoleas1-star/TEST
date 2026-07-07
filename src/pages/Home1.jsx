@@ -48,7 +48,7 @@ const PANELS = [
     accent: 'et chaque voix se compte.',
     body:
       "Des scrutins certifiés, du concours de talents à l'élection associative — un procès-verbal en fin de vote, aucune contestation possible.",
-    cta: 'Découvrir les votes',
+    cta: 'Lancer mon concours de vote et scrutin',
     tone: 'orange',
   },
   {
@@ -58,7 +58,7 @@ const PANELS = [
     accent: 'aussi vite que Mobile Money.',
     body:
       "Concert, conférence, atelier : votre page, vos catégories de billets, un QR envoyé en direct sur WhatsApp — contrôle d'accès à l'entrée en un scan.",
-    cta: 'Découvrir la billetterie',
+    cta: 'Vendre les billets de mon événement',
     tone: 'blue',
   },
   {
@@ -68,7 +68,7 @@ const PANELS = [
     accent: 'une communauté qui répond.',
     body:
       'Que ce soit pour une urgence médicale, une ONG, un mariage ou une funéraille : lancez la collecte en trois minutes, chaque contribution est visible en temps réel.',
-    cta: 'Ouvrir une cagnotte',
+    cta: 'Lancer une cagnotte',
     tone: 'orange',
   },
   {
@@ -78,7 +78,7 @@ const PANELS = [
     accent: 'financée par plusieurs.',
     body:
       "Portez votre projet devant votre communauté avec un objectif clair, des paliers et une progression suivie — les fonds ne sont libérés que si le seuil promis est atteint.",
-    cta: 'Lancer un projet',
+    cta: 'Lancer un projet pour me faire financer',
     tone: 'blue',
   },
   {
@@ -97,8 +97,8 @@ const PANELS = [
     headline: 'Un tirage sans doute,',
     accent: 'un gagnant sans contestation.',
     body:
-      'Algorithme de tirage vérifiable, procès-verbal automatique, désignation publique du gagnant : tout est prévu pour que personne ne remette le résultat en question.',
-    cta: 'Organiser un tirage',
+      'Jeux-concours, tombolas ou tirages au sort : algorithme vérifiable, procès-verbal automatique, désignation publique du gagnant — tout est prévu pour que personne ne remette le résultat en question.',
+    cta: 'Organiser un tirage ou un jeu-concours',
     tone: 'blue',
   },
 ];
@@ -171,18 +171,14 @@ function StaticHeroLayer() {
   );
 }
 
-// Image-only layer — no text inside. Panel 0 is full-bleed (it grows to
-// cover the whole screen); every other panel sits on a slightly inset,
-// rounded frame so a sliver of what's behind is visible while it's still
-// mid-rise, instead of a hard full-screen cut.
-function ImageLayer({ panel, index, panelRef }) {
-  const isIntro = index === 0;
+// Image-only layer — no text inside. Every panel is full-bleed, edge to
+// edge with the viewport, exactly like panel 0 — none of them are boxed
+// into a smaller inset card.
+function ImageLayer({ panel, panelRef }) {
   return (
     <div
       ref={panelRef}
-      className={`absolute bg-ink-900 overflow-hidden ${
-        isIntro ? 'inset-0' : 'inset-[3%] sm:inset-[4%] rounded-[1.75rem] sm:rounded-[2.5rem] shadow-2xl'
-      }`}
+      className="absolute inset-0 bg-ink-900 overflow-hidden"
       style={{ willChange: 'transform', backfaceVisibility: 'hidden', transformOrigin: '50% 50%' }}
     >
       <img src={panel.universe.image} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -203,10 +199,10 @@ function PanelContent({ panel, contentRef }) {
   return (
     <div
       ref={contentRef}
-      className="absolute inset-0 h-full flex items-center px-6 sm:px-10 md:px-16 lg:px-24"
+      className="absolute inset-0 h-full flex flex-col items-center justify-center text-center px-6 sm:px-10"
       style={{ willChange: 'opacity' }}
     >
-      <div className="max-w-3xl">
+      <div className="max-w-3xl flex flex-col items-center">
         <span
           className={`btn ${btnClass} !inline-flex !px-4 !py-1.5 !text-xs sm:!text-sm mb-6 sm:mb-8`}
           style={{ transform: 'rotate(-3deg)' }}
@@ -231,18 +227,18 @@ function PanelContent({ panel, contentRef }) {
         <p className="text-white/85 text-sm sm:text-base md:text-lg leading-relaxed max-w-xl normal-case mb-8 sm:mb-10">
           {panel.body}
         </p>
-        <div className="flex items-center gap-5 sm:gap-6 flex-wrap">
+        <div className="flex flex-col items-center gap-5 sm:gap-6">
           <a href="/inscription" className={`btn ${btnClass}`}>
             {panel.cta}
             <span aria-hidden>→</span>
           </a>
-          <div className="hidden sm:flex -space-x-3">
+          <div className="flex -space-x-3">
             {chips.map((src, ci) => (
               <img
                 key={ci}
                 src={src}
                 alt=""
-                className="w-12 h-12 rounded-xl object-cover border-2 border-white shadow-lg"
+                className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl object-cover border-2 border-white shadow-lg"
                 style={{ transform: `rotate(${(ci - 1) * 9}deg)` }}
               />
             ))}
@@ -312,7 +308,11 @@ function ParallaxStory() {
         // Scaled off the viewport height (like the reference's `+=600%`
         // for 5 panels), so the pacing stays consistent across screen sizes.
         end: () => `+=${totalUnits * window.innerHeight * 1.35}`,
-        scrub: 1,
+        // `scrub: true` (not a numeric lag) — Lenis already supplies the
+        // smoothing feel; stacking ScrollTrigger's own lag on top of it
+        // caused a "rubber band" catch-up where the panel visibly rocketed
+        // to its resting position instead of moving at a steady pace.
+        scrub: true,
         pin: true,
         pinSpacing: true,
         anticipatePin: 1,
@@ -330,7 +330,7 @@ function ParallaxStory() {
     >
       <StaticHeroLayer />
       {PANELS.map((panel, i) => (
-        <ImageLayer key={panel.universe.id} panel={panel} index={i} panelRef={(el) => (panelRefs.current[i] = el)} />
+        <ImageLayer key={panel.universe.id} panel={panel} panelRef={(el) => (panelRefs.current[i] = el)} />
       ))}
       {/* Fixed text layer sits above every image layer and never moves. */}
       <div className="absolute inset-0 z-30">
@@ -360,7 +360,7 @@ function ScrolledHeaderShell() {
       className={`fixed top-0 inset-x-0 z-[60] transition-colors duration-300 ${
         scrolled
           ? '[&_header]:!bg-white/40 [&_header]:!backdrop-blur-md [&_header]:!border-white/30'
-          : '[&_header]:!bg-transparent [&_header]:!border-transparent'
+          : '[&_header]:!bg-transparent [&_header]:!border-transparent [&_.hamburger-btn]:!text-white'
       }`}
     >
       <SiteHeader activeHref="/" />
