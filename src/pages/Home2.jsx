@@ -1588,22 +1588,22 @@ const SHOWCASE_CARDS = [
   { image: '/dance-contest.jpg', text: 'Pour tous vos concours de danse', color: '#2B6BFF' },
   { image: '/award-winner.jpg', text: 'Pour toutes vos remises de prix', color: '#FF6A00' },
   { image: '/concert-stadium.jpg', text: 'Pour tous vos grands concerts', color: '#2B6BFF' },
-  // Different image now that the pageant photo moved to Miss & Mister above.
-  { image: '/gala-performance.jpg', text: 'Pour tous vos concours de talents', color: '#FF6A00' },
+  // Different image now that the pageant photo moved to Miss & Mister above
+  // (was a duplicate of "galas culturels" right below it).
+  { image: '/concert-jazz.jpg', text: 'Pour tous vos concours de talents', color: '#FF6A00' },
   { image: '/gala-performance.jpg', text: 'Pour tous vos galas culturels', color: '#2B6BFF' },
   { image: '/choir-performance.jpg', text: 'Pour toutes vos soirées gospel', color: '#FF6A00' },
   { image: '/concert-outdoor.jpg', text: 'Pour tous vos festivals', color: '#2B6BFF' },
   { image: '/award-winner.jpg', text: 'Pour toutes vos cérémonies de récompense', color: '#FF6A00' },
-  { image: uImg('1571266028243-5ecd42a5c69f'), text: 'Pour toutes vos remises de diplômes', color: '#2B6BFF' },
   { image: '/concert-singer.jpg', text: 'Pour toutes vos scènes ouvertes', color: '#FF6A00' },
   { image: '/africa-network.jpg', text: 'Pour toutes vos conférences panafricaines', color: '#2B6BFF' },
-  { image: uImg('1584464491033-06628f3a6b7b'), text: 'Pour tous vos anniversaires', color: '#FF6A00' },
-  { image: '/concert-stadium.jpg', text: 'Pour tous vos tournois sportifs', color: '#2B6BFF' },
+  { image: uImg('1533294455009-a77b7557d2d1'), text: 'Pour tous vos anniversaires', color: '#FF6A00' },
+  { image: uImg('1517649763962-0c623066013b'), text: 'Pour tous vos tournois sportifs', color: '#2B6BFF' },
   { image: '/miss-universe.jpg', text: 'Pour toutes vos élections de reine de beauté', color: '#FF6A00' },
   { image: uImg('1531058020387-3be344556be6'), text: 'Pour tous vos lancements de projet', color: '#2B6BFF' },
   { image: '/community-hands.jpg', text: 'Pour toutes vos levées de fonds', color: '#FF6A00' },
   { image: '/dance-contest.jpg', text: 'Pour toutes vos soirées dansantes', color: '#2B6BFF' },
-  { image: '/events-collage-tech.jpg', text: 'Pour toutes vos conventions', color: '#FF6A00' },
+  { image: uImg('1517457373958-b7bdd4587205'), text: 'Pour toutes vos conventions', color: '#FF6A00' },
 ];
 
 function ShowcaseCard({ image, text, color, index, total }) {

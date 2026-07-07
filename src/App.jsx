@@ -5,6 +5,7 @@ import Tarifs from './pages/Tarifs';
 import Confidentialite from './pages/Confidentialite';
 import Connexion from './pages/Connexion';
 import Contact from './pages/Contact';
+import Mainframe from './pages/Mainframe';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="/confidentialite" element={<Confidentialite />} />
         <Route path="/connexion" element={<Connexion />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/mainframe" element={<Mainframe />} />
       </Routes>
     </div>
   );

@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Scoped to the Mainframe landing page only (applied via .mainframe-page)
+     — the rest of the site keeps its own Anton/Space Grotesk pairing. */
+  --font-heading: 'HelveticaNowDisplay-Medium', 'Helvetica Neue', Arial, sans-serif;
+  --font-body: 'HelveticaNowDisplayW01-Rg', 'Helvetica Neue', Arial, sans-serif;
+}
+.mainframe-page {
+  font-family: var(--font-body);
+}
+
 @layer base {
   /* Deliberately no `scroll-behavior: smooth` on html: it fights GSAP
      ScrollTrigger's own scrub/snap easing (native smooth-scroll keeps
