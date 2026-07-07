@@ -1,0 +1,45 @@
+stages:
+  - build
+
+# ---------------------------------------------------------------------------
+# Frontend — build de production avec Vite
+# ---------------------------------------------------------------------------
+build_frontend:
+  stage: build
+  image: node:20
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - node_modules/
+  script:
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
+
+# ---------------------------------------------------------------------------
+# Backend — installation des dépendances + vérification syntaxique de
+# tous les fichiers .js (pas de vraie base de données disponible en CI,
+# donc pas de démarrage réel du serveur ici, juste une validation statique).
+# ---------------------------------------------------------------------------
+build_backend:
+  stage: build
+  image: node:20
+  cache:
+    key:
+      files:
+        - moledi-backend/package-lock.json
+    paths:
+      - moledi-backend/node_modules/
+  script:
+    - cd moledi-backend
+    - npm ci
+    - find src -name "*.js" -print0 | xargs -0 -n1 node --check
+  rules:
+    - if: '$CI_COMMIT_BRANCH'

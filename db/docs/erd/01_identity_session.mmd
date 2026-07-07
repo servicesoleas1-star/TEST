@@ -1,0 +1,31 @@
+erDiagram
+  VISITORS ||--o{ PUBLIC_SESSIONS : "visitor_id"
+  VISITORS ||--o{ PUBLIC_ACTIONS : "visitor_id"
+  VISITORS ||--o{ GDPR_CONSENTS : "visitor_id"
+  VISITORS ||--o{ RATE_LIMITS : "visitor_id"
+  VISITORS {
+    uuid visitor_id PK
+    uuid account_id FK
+  }
+  PUBLIC_SESSIONS {
+    uuid session_id PK
+    uuid visitor_id FK
+  }
+  PUBLIC_ACTIONS {
+    uuid action_id PK
+    uuid visitor_id FK
+    action_type type
+    uuid entity_id
+    string entity_type
+    action_status status
+    string short_id
+  }
+  GDPR_CONSENTS {
+    uuid consent_id PK
+    uuid visitor_id FK
+  }
+  RATE_LIMITS {
+    string ip_hashed PK
+    uuid visitor_id PK
+    action_type action_type PK
+  }

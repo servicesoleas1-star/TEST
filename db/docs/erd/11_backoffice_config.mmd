@@ -1,0 +1,40 @@
+erDiagram
+  SITE_CONFIGS {
+    uuid config_id PK
+    string contact_email
+    string admin_email
+  }
+  GLOBAL_FAQS {
+    uuid faq_id PK
+    faq_type type
+  }
+  FEATURE_FLAGS {
+    uuid flag_id PK
+    string name
+    uuid modified_by FK
+  }
+  MAINTENANCE_MODES {
+    uuid mode_id PK
+    uuid activated_by FK
+  }
+  KPI_SNAPSHOTS {
+    uuid kpi_id PK
+    kpi_type type
+  }
+  CANNED_REPLIES {
+    uuid reply_id PK
+    string title
+  }
+  SYSTEM_EMAIL_TEMPLATES {
+    uuid template_id PK
+    string type
+  }
+  LEGAL_PAGES {
+    uuid page_id PK
+    legal_type type
+    uuid updated_by FK
+  }
+  LANGUAGE_CONFIGS {
+    uuid language_id PK
+    language_code code
+  }

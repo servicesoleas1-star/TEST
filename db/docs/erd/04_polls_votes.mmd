@@ -1,0 +1,126 @@
+erDiagram
+  POLLS ||--o{ CANDIDATE_CATEGORIES : "poll_id"
+  POLLS ||--o{ CANDIDATES : "poll_id"
+  CANDIDATE_CATEGORIES ||--o{ CANDIDATES : "category_id"
+  POLLS ||--o{ VOTES : "poll_id"
+  CANDIDATES ||--o{ VOTES : "candidate_id"
+  POLLS ||--o{ ANTI_DUPLICATES : "poll_id"
+  VOTES ||--o{ ANTI_DUPLICATES : "vote_id"
+  POLLS ||--o{ VOTE_OTPS : "poll_id"
+  POLLS ||--o{ UNIQUE_CODES : "poll_id"
+  VOTES ||--o{ UNIQUE_CODES : "vote_id"
+  POLLS ||--o{ JURY_SESSIONS : "poll_id"
+  JURY_SESSIONS ||--o{ JURY_SCORES : "jury_id"
+  CANDIDATES ||--o{ JURY_SCORES : "candidate_id"
+  POLLS ||--o{ WEIGHTED_SCORES : "poll_id"
+  CANDIDATES ||--o{ WEIGHTED_SCORES : "candidate_id"
+  POLLS ||--o{ CLOSING_REPORTS : "poll_id"
+  POLLS ||--o{ POLL_NEWS : "poll_id"
+  POLLS ||--o{ POLL_GALLERIES : "poll_id"
+  POLLS ||--o{ POLL_PARTNERS : "poll_id"
+  POLLS ||--o{ POLL_FAQS : "poll_id"
+  POLLS ||--o{ POLL_NOTICES : "poll_id"
+  POLLS ||--o{ POLL_REPORTS : "poll_id"
+  CANDIDATES ||--o{ POLL_REPORTS : "candidate_id"
+  POLLS {
+    uuid poll_id PK
+    uuid user_id FK
+    string slug
+    string title
+    string display_organizer_name
+    poll_status status
+    vote_type vote_type
+  }
+  CANDIDATE_CATEGORIES {
+    uuid category_id PK
+    uuid poll_id FK
+    string name
+  }
+  CANDIDATES {
+    uuid candidate_id PK
+    uuid poll_id FK
+    uuid category_id FK
+    string real_name
+    string display_name
+    string email
+  }
+  VOTES {
+    uuid vote_id PK
+    uuid poll_id FK
+    uuid candidate_id FK
+    uuid visitor_id FK
+    uuid user_id FK
+    vote_type vote_type
+    vote_status status
+    string short_id
+    uuid transaction_id FK
+  }
+  ANTI_DUPLICATES {
+    uuid ad_id PK
+    uuid poll_id FK
+    uuid vote_id FK
+  }
+  VOTE_OTPS {
+    uuid otp_id PK
+    uuid poll_id FK
+    uuid visitor_id FK
+  }
+  UNIQUE_CODES {
+    uuid code_id PK
+    uuid poll_id FK
+    code_status status
+    uuid vote_id FK
+  }
+  JURY_SESSIONS {
+    uuid jury_id PK
+    uuid poll_id FK
+    string juror_email
+    uuid invitation_token_id FK
+  }
+  JURY_SCORES {
+    uuid score_id PK
+    uuid jury_id FK
+    uuid candidate_id FK
+  }
+  WEIGHTED_SCORES {
+    uuid ws_id PK
+    uuid poll_id FK
+    uuid candidate_id FK
+  }
+  CLOSING_REPORTS {
+    uuid report_id PK
+    uuid poll_id FK
+    uuid supervisor_id FK
+  }
+  POLL_NEWS {
+    uuid news_id PK
+    uuid poll_id FK
+    string title
+  }
+  POLL_GALLERIES {
+    uuid item_id PK
+    uuid poll_id FK
+    media_type media_type
+  }
+  POLL_PARTNERS {
+    uuid partner_id PK
+    uuid poll_id FK
+    string name
+  }
+  POLL_FAQS {
+    uuid faq_id PK
+    uuid poll_id FK
+  }
+  POLL_NOTICES {
+    uuid notice_id PK
+    uuid poll_id FK
+    notice_type type
+  }
+  POLL_REPORTS {
+    uuid report_id PK
+    uuid poll_id FK
+    uuid candidate_id FK
+    string reporter_name
+    poll_complaint_type complaint_type
+    uuid ticket_id FK
+  }

@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+moledi-backend/.env
+moledi-backend/node_modules/
