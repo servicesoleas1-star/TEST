@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { media } from '../config/media';
 
@@ -64,20 +65,41 @@ const socials = [
 ];
 
 function Footer() {
+  const videoRef = useRef(null);
+
+  // Some mobile browsers auto-pause offscreen <video> elements to save
+  // battery/data and never resume them on their own — so scrolling back
+  // down to the footer could find it frozen. Force a resume every time it
+  // re-enters the viewport.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) v.play().catch(() => {});
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(v);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <footer className="relative bg-ink-100 text-ink-700 overflow-hidden">
-      {/* Background hero-video reused so the footer doesn't feel disconnected
-          from the top of the page — clearly visible (not just a hinted
-          texture) but still read as a background: no blur, an ink-tinted
-          overlay on top keeps every line of text legible over it. */}
+      {/* Own video, independent from the header's — swap media.footerVideo
+          in src/config/media.js whenever a different file is dropped in
+          /public/. Clearly visible (not just a hinted texture) but still
+          reads as a background: no blur, an ink-tinted overlay on top
+          keeps every line of text legible over it. */}
       <video
+        ref={videoRef}
         autoPlay
         muted
         loop
         playsInline
         aria-hidden
         className="absolute inset-0 w-full h-full object-cover opacity-55"
-        src="/hero-video.mp4"
+        src={media.footerVideo}
       />
       <div className="absolute inset-0 bg-ink-100/60" />
       {/* Compact CTA banner — logo, then "De l'idée à l'événement, Un seul clic" — always one horizontal row */}

@@ -1597,7 +1597,7 @@ const SHOWCASE_CARDS = [
   { image: '/award-winner.jpg', text: 'Pour toutes vos cérémonies de récompense', color: '#FF6A00' },
   { image: '/concert-singer.jpg', text: 'Pour toutes vos scènes ouvertes', color: '#FF6A00' },
   { image: '/africa-network.jpg', text: 'Pour toutes vos conférences panafricaines', color: '#2B6BFF' },
-  { image: uImg('1533294455009-a77b7557d2d1'), text: 'Pour tous vos anniversaires', color: '#FF6A00' },
+  { image: '/miss-crown.jpg', text: 'Pour tous vos anniversaires', color: '#FF6A00' },
   { image: uImg('1517649763962-0c623066013b'), text: 'Pour tous vos tournois sportifs', color: '#2B6BFF' },
   { image: '/miss-universe.jpg', text: 'Pour toutes vos élections de reine de beauté', color: '#FF6A00' },
   { image: uImg('1531058020387-3be344556be6'), text: 'Pour tous vos lancements de projet', color: '#2B6BFF' },

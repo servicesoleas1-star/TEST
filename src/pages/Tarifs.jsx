@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import SiteHeader from '../components/SiteHeader';
 import Footer from '../components/Footer';
 import { flag, illustration } from '../config/media';
+
+gsap.registerPlugin(ScrollTrigger);
 
 // --- Barème de commission (backlog LAN-08, Tarifs & Couverture) ---
 // Mirrors UML DC-08 `CommissionConfig`. Public pricing page = anonymous
@@ -237,55 +241,88 @@ const cards = [
 ];
 
 const N = cards.length;
+const CARD_STAGGER = 0.9;
+const CARD_RISE = 1;
 
 /**
- * Rate cards stack one after another: card 0 sticks in place, then card 1
- * scrolls up and sits fully on top of it (opaque, same sticky position,
- * higher z-index), then card 2 does the same on top of card 1 — a plain
- * sequential cover, no peeking edges or scale/blur effects. Once the last
- * card has covered the stack, the page continues to the rest of the site.
- * Full-width, tall panels on desktop (not a small centered card).
+ * Rate cards use the same push-parallax family as the homepage's storytelling
+ * section, adapted for text/data cards instead of full-bleed images: each
+ * card rises from below and settles in the same centred spot, while the
+ * previous one recedes (shrinks + dims + nudges up) rather than vanishing —
+ * you can still see it peeking behind the new one, not a hard cut. Image is
+ * always on the right / text always on the left, on every screen size.
  */
 function RateCards() {
+  const sectionRef = useRef(null);
+  const cardRefs = useRef([]);
+
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
+      const cardsEls = cardRefs.current;
+      gsap.set(cardsEls.slice(1), { yPercent: 100 });
+
+      const tl = gsap.timeline({ defaults: { ease: 'none' } });
+      cardsEls.forEach((_, i) => {
+        if (i === 0) return;
+        const startTime = i * CARD_STAGGER;
+        tl.to(cardsEls[i], { yPercent: 0, duration: CARD_RISE }, startTime);
+        // The previous card recedes but stays partly visible behind the new
+        // one — a peek, not a disappearance.
+        tl.to(
+          cardsEls[i - 1],
+          { yPercent: -12, scale: 0.93, opacity: 0.45, duration: CARD_RISE },
+          startTime
+        );
+      });
+
+      const totalUnits = (N - 1) * CARD_STAGGER + CARD_RISE;
+
+      ScrollTrigger.create({
+        animation: tl,
+        trigger: sectionRef.current,
+        start: 'top top',
+        end: () => `+=${totalUnits * window.innerHeight}`,
+        scrub: true,
+        pin: true,
+      });
+    }, sectionRef);
+
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <section className="py-16 sm:py-20">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        {cards.map((c, i) => {
-          const rate = c.rateType === 'FLAT' ? c.rate : getCommissionRate(c.rateType);
-          const isLast = i === N - 1;
-          return (
-            <div key={c.rateType} className={isLast ? '' : 'h-[75vh] sm:h-[65vh]'}>
-              <div className="sticky top-20 sm:top-24" style={{ zIndex: i + 1 }}>
-                <motion.div
-                  initial={{ opacity: 0, y: 60 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '-10% 0px' }}
-                  transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-                  className="flex flex-col-reverse sm:flex-row items-center gap-6 sm:gap-10 lg:gap-16 rounded-2xl sm:rounded-3xl border border-ink-200 bg-white p-6 sm:p-10 lg:p-14 min-h-[280px] sm:min-h-[340px] lg:min-h-[400px] shadow-[0_35px_80px_-30px_rgba(11,19,36,0.35)]"
-                >
-                  <div className="flex-1 min-w-0">
-                    <span
-                      className={`w-2.5 h-2.5 rounded-full inline-block mb-3 sm:mb-5 ${
-                        c.tone === 'primary' ? 'bg-primary' : c.tone === 'secondary' ? 'bg-secondary' : 'bg-ink-900'
-                      }`}
-                    />
-                    <p className="text-5xl sm:text-7xl lg:text-8xl font-heading normal-case text-ink-900 mb-2 sm:mb-4">
-                      {rate != null ? `${rate}%` : '—'}
-                    </p>
-                    <h3 className="text-lg sm:text-2xl lg:text-3xl font-semibold text-ink-900 mb-2 sm:mb-3">{c.title}</h3>
-                    <p className="text-sm sm:text-base text-ink-700 normal-case leading-relaxed max-w-md">{c.desc}</p>
-                  </div>
-                  <img
-                    src={c.image}
-                    alt=""
-                    className="w-28 h-28 sm:w-56 sm:h-56 lg:w-72 lg:h-72 rounded-2xl object-cover shrink-0"
-                  />
-                </motion.div>
+    <section ref={sectionRef} className="relative h-[100svh] overflow-hidden bg-ink-100/40">
+      {cards.map((c, i) => {
+        const rate = c.rateType === 'FLAT' ? c.rate : getCommissionRate(c.rateType);
+        return (
+          <div
+            key={c.rateType}
+            ref={(el) => (cardRefs.current[i] = el)}
+            className="absolute inset-0 flex items-center justify-center px-4 sm:px-6 lg:px-8"
+            style={{ willChange: 'transform, opacity', backfaceVisibility: 'hidden' }}
+          >
+            <div className="w-full max-w-5xl flex flex-row items-center gap-4 sm:gap-10 lg:gap-16 rounded-2xl sm:rounded-3xl border border-ink-200 bg-white p-5 sm:p-10 lg:p-14 min-h-[260px] sm:min-h-[340px] lg:min-h-[400px] shadow-[0_35px_80px_-30px_rgba(11,19,36,0.35)]">
+              <div className="flex-1 min-w-0 order-1">
+                <span
+                  className={`w-2.5 h-2.5 rounded-full inline-block mb-3 sm:mb-5 ${
+                    c.tone === 'primary' ? 'bg-primary' : c.tone === 'secondary' ? 'bg-secondary' : 'bg-ink-900'
+                  }`}
+                />
+                <p className="text-4xl sm:text-7xl lg:text-8xl font-heading normal-case text-ink-900 mb-2 sm:mb-4">
+                  {rate != null ? `${rate}%` : '—'}
+                </p>
+                <h3 className="text-base sm:text-2xl lg:text-3xl font-semibold text-ink-900 mb-2 sm:mb-3">{c.title}</h3>
+                <p className="text-xs sm:text-base text-ink-700 normal-case leading-relaxed max-w-md">{c.desc}</p>
               </div>
+              <img
+                src={c.image}
+                alt=""
+                className="order-2 w-20 h-20 sm:w-56 sm:h-56 lg:w-72 lg:h-72 rounded-2xl object-cover shrink-0 rotate-3 shadow-lg"
+              />
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </section>
   );
 }
@@ -369,20 +406,20 @@ function FeeCalculator() {
           <label className="block text-xs font-semibold uppercase tracking-wide text-ink-700 mb-2">
             Type d'événement
           </label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-6">
+          <div className="flex flex-wrap gap-2 mb-6">
             {campaignTypes.map((t) => (
               <button
                 key={t.key}
                 type="button"
                 onClick={() => setCampaignType(t.key)}
-                className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 px-2 text-center transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-full border py-2 px-3.5 transition-colors ${
                   campaignType === t.key
                     ? 'bg-ink-900 text-white border-ink-900'
                     : 'bg-white text-ink-700 border-ink-200 hover:border-ink-900/40'
                 }`}
               >
-                <i className={`fa-solid ${t.icon} text-base ${campaignType === t.key ? 'text-primary-300' : 'text-primary'}`} />
-                <span className="text-[11px] font-semibold leading-tight">{t.label}</span>
+                <i className={`fa-solid ${t.icon} text-xs ${campaignType === t.key ? 'text-primary-300' : 'text-primary'}`} />
+                <span className="text-[12px] font-semibold whitespace-nowrap">{t.label}</span>
               </button>
             ))}
           </div>
@@ -643,6 +680,114 @@ function PaymentMethodsGrid() {
 }
 
 
+const PRICING_FAQ = [
+  {
+    q: 'Les tarifs sont-ils négociables ?',
+    a: 'Oui, pour les gros volumes ou les partenariats sur la durée, nous pouvons discuter d\'un tarif adapté. Contactez-nous pour en parler.',
+    linkToContact: true,
+  },
+  {
+    q: 'Les tarifs sont-ils fixes ?',
+    a: "Oui : la commission affichée pour chaque type de campagne est fixe, appliquée uniquement sur ce que vous encaissez réellement. Aucune surprise en cours de route.",
+  },
+  {
+    q: 'Y a-t-il des frais cachés ?',
+    a: "Non, il n'y a aucun frais caché. Pas d'abonnement, pas de frais d'inscription, pas de frais de retrait vers votre mobile money.",
+  },
+  {
+    q: 'Quand la commission est-elle prélevée ?',
+    a: 'Uniquement au moment où un paiement est effectivement encaissé — jamais avant, jamais sur un événement qui ne collecte rien.',
+  },
+  {
+    q: "Le tarif change-t-il selon le pays ?",
+    a: "Non, la commission dépend du type de campagne (billetterie, vote, don...), pas du pays. Seuls les moyens de paiement disponibles varient d'un pays à l'autre.",
+  },
+  {
+    q: 'Puis-je changer de formule en cours de route ?',
+    a: "Il n'y a pas de formule à choisir à l'avance : chaque campagne suit simplement le tarif de son propre type. Vous pouvez lancer autant de campagnes de types différents que vous le souhaitez.",
+  },
+];
+
+function FAQItem({ item, open, onToggle }) {
+  return (
+    <div className="border-b border-ink-200">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-4 py-5 text-left"
+      >
+        <span className="text-sm sm:text-base font-semibold text-ink-900">{item.q}</span>
+        <span
+          className={`shrink-0 w-7 h-7 rounded-full border border-ink-200 flex items-center justify-center text-ink-700 transition-transform duration-300 ${
+            open ? 'rotate-45' : ''
+          }`}
+        >
+          +
+        </span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <p className="text-sm text-ink-700 normal-case leading-relaxed pb-5 max-w-2xl">
+              {item.a}{' '}
+              {item.linkToContact && (
+                <a href="/contact" className="text-primary font-semibold underline underline-offset-2">
+                  Contactez-nous
+                </a>
+              )}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * Pricing-only FAQ — deliberately narrow in scope (negotiable? fixed?
+ * hidden fees?), not a general help centre. Accordion, one question open
+ * at a time.
+ */
+function PricingFAQ() {
+  const [openIndex, setOpenIndex] = useState(0);
+
+  return (
+    <section className="py-16 sm:py-20">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-10% 0px' }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="text-center mb-10"
+        >
+          <p className="text-primary font-semibold tracking-[0.2em] uppercase text-[10px] mb-2">
+            Questions fréquentes
+          </p>
+          <h2 className="text-3xl sm:text-5xl text-ink-900">Vos questions sur les tarifs</h2>
+        </motion.div>
+
+        <div>
+          {PRICING_FAQ.map((item, i) => (
+            <FAQItem
+              key={item.q}
+              item={item}
+              open={openIndex === i}
+              onToggle={() => setOpenIndex((cur) => (cur === i ? -1 : i))}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Tarifs() {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
@@ -677,6 +822,7 @@ function Tarifs() {
 
         <CountryCoverage />
         <PaymentMethodsGrid />
+        <PricingFAQ />
       </main>
       <Footer />
     </motion.div>

@@ -14,6 +14,10 @@ export const media = {
   logoMark: '/logo-mark.png',
   heroPoster: '/hero-poster.jpg',
   heroVideo: '/hero-video.mp4',
+  // Separate URL from heroVideo on purpose — drop a different file at
+  // /public/footer-video.mp4 (or update this path) to swap the footer's
+  // background video independently from the header's.
+  footerVideo: '/footer-video.mp4',
 };
 
 // Flag CDN — free, MIT-licensed set. e.g. https://flagcdn.com/w160/sn.png
