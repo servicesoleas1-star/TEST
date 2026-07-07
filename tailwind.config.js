@@ -37,8 +37,6 @@ export default {
       fontFamily: {
         heading: ['Anton', 'sans-serif'],
         body: ['"Space Grotesk"', 'sans-serif'],
-        // Used only by the temporary /foldcraft preview page.
-        geist: ['Geist', 'sans-serif'],
       },
       backgroundImage: {
         'gradient-orange': 'linear-gradient(90deg, #FF6A00, #FFB347)',
