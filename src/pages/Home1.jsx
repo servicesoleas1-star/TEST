@@ -18,27 +18,27 @@ import {
 gsap.registerPlugin(ScrollTrigger);
 
 /**
- * Storytelling section — "push parallax stack" (à la floema.com), ported
- * faithfully from the reference GSAP/Lenis timeline the client provided:
+ * Storytelling section — "push parallax stack" (à la floema.com).
  *
- *  - ONE pinned, fixed-camera section. Every panel is `position:absolute`,
- *    stacked on top of a static hero layer that never moves.
- *  - Each panel starts fully below the viewport (`yPercent: 100`) and rises
- *    to `yPercent: 0`. Panel `i` starts at `startTime = i * 0.85` (a unit
- *    timeline, not real seconds — ScrollTrigger's `scrub` maps scroll
- *    distance onto it), duration `1`. Because the next panel starts before
- *    the current one finishes (0.85 < 1), there's a real overlap window
- *    where the incoming panel visibly slides up OVER the previous one.
- *  - The previous panel is simultaneously pushed further back
- *    (`yPercent: -30`) during that same window — the "push" in push
- *    parallax: it doesn't just sit still and get covered, it recedes.
- *  - Text/card metamorphosis: the outgoing panel's text+card fades/slides
- *    out and the incoming one fades/slides in, both centered exactly on
- *    `intersectTime = startTime + 0.5` (the geometric crossing point),
- *    over a short 0.15 duration — a quick hand-off, not a slow crossfade.
- *  - Frame-0 exception: panel 0 has no previous panel's text to hand off
- *    from (only the static hero underneath), so its image + text + card
- *    all rise together as a single block, no separate fade.
+ *  - ONE pinned, fixed-camera section. The TEXT is on its own layer that
+ *    never moves — only its opacity/content crossfades between panels.
+ *    Only the IMAGE layers slide/push; text does not travel with them
+ *    (an image visually passes behind the still text as it moves).
+ *  - Panel 0 is a special intro: its image starts small (scaled down,
+ *    centered) and grows until it fills the whole screen — like a photo
+ *    being brought up close — then locks in place, fully covering the
+ *    static hero underneath. Only once that's done does the real
+ *    scroll-driven story begin.
+ *  - From panel 1 onward: each panel rises from below (`yPercent: 100` ->
+ *    `0`) while the panel before it gets pushed further back
+ *    (`yPercent: -45`) — two images that appear to shove each other up the
+ *    screen. The next panel only starts rising once the current push is
+ *    almost finished (a small overlap, not an early cut), so the hand-off
+ *    reads as a continuous shove rather than an abrupt swap.
+ *  - Text metamorphosis: exactly at the geometric midpoint of that
+ *    hand-off, the outgoing panel's text fades out and the incoming one
+ *    fades in, in the exact same on-screen position — the numbering,
+ *    headline and details change, but nothing physically moves.
  *  - Lenis drives the actual smooth-scroll feel; GSAP's ticker drives
  *    Lenis's raf loop (the documented Lenis+GSAP integration) so
  *    ScrollTrigger and the smoothing never fight each other.
@@ -108,11 +108,12 @@ const PANELS = [
 ];
 
 // Timeline formula constants — see the file-level comment above.
-const STAGGER = 0.85;
+const INTRO_DURATION = 1; // panel 0's scale-to-fullscreen intro
+const STAGGER = 0.92; // next panel starts this far into the previous rise
 const RISE_DURATION = 1;
-const PUSH_Y = -30; // percent
+const PUSH_Y = -45; // percent — how far a covered panel recedes
 const META_DURATION = 0.15;
-const SCROLL_PX_PER_UNIT = 900;
+const SCROLL_PX_PER_UNIT = 1100;
 
 function StaticHeroLayer() {
   const videoRef = useRef(null);
@@ -127,7 +128,7 @@ function StaticHeroLayer() {
   }, []);
 
   return (
-    <div className="absolute inset-0 bg-ink-900" aria-hidden={false}>
+    <div className="absolute inset-0 bg-ink-900">
       <video
         ref={videoRef}
         autoPlay
@@ -135,12 +136,14 @@ function StaticHeroLayer() {
         loop
         playsInline
         preload="none"
-        poster={media.heroPoster}
         className="absolute inset-0 w-full h-full object-cover scale-105 blur-[2px] opacity-60"
       >
         <source src={media.heroVideo} type="video/mp4" />
       </video>
       <div className="absolute inset-0 bg-gradient-to-b from-ink-900/70 via-ink-900/45 to-ink-900/85" />
+      <div className="absolute inset-0 bg-gradient-to-t from-ink-900/50 via-transparent to-transparent" />
+      {/* Smooth hand-off into the next (white) section, exactly as before. */}
+      <div className="absolute inset-x-0 bottom-0 h-40 sm:h-56 bg-gradient-to-b from-transparent to-white pointer-events-none" />
       <div className="relative h-full flex items-center justify-center px-5 sm:px-6 lg:px-8 text-center">
         <div className="max-w-6xl mx-auto w-full">
           <h1
@@ -171,75 +174,81 @@ function StaticHeroLayer() {
   );
 }
 
-function StoryPanel({ panel, index, panelRef, contentRef }) {
-  const isBlue = panel.tone === 'blue';
-
+// Image-only layer — no text inside. Panel 0 is full-bleed (it grows to
+// cover the whole screen); every other panel sits on a slightly inset,
+// rounded frame so a sliver of what's behind is visible while it's still
+// mid-rise, instead of a hard full-screen cut.
+function ImageLayer({ panel, index, panelRef }) {
+  const isIntro = index === 0;
   return (
     <div
       ref={panelRef}
-      className="absolute inset-0 bg-ink-900"
-      style={{ willChange: 'transform', backfaceVisibility: 'hidden' }}
+      className={`absolute bg-ink-900 overflow-hidden ${
+        isIntro ? 'inset-0' : 'inset-[3%] sm:inset-[4%] rounded-[1.75rem] sm:rounded-[2.5rem] shadow-2xl'
+      }`}
+      style={{ willChange: 'transform', backfaceVisibility: 'hidden', transformOrigin: '50% 50%' }}
     >
       <img src={panel.universe.image} alt="" className="absolute inset-0 w-full h-full object-cover" />
-      <div className="absolute inset-0 bg-gradient-to-b from-ink-900/55 via-ink-900/40 to-ink-900/70" />
+      <div className="absolute inset-0 bg-gradient-to-b from-ink-900/50 via-ink-900/25 to-ink-900/65" />
+    </div>
+  );
+}
 
-      <div
-        ref={contentRef}
-        className="relative h-full flex items-center px-6 sm:px-10 md:px-16 lg:px-24"
-        style={{ willChange: 'opacity, transform' }}
-      >
-        <div className="max-w-3xl">
-          <div className="flex items-center gap-3 mb-6 sm:mb-8">
-            <span
-              className={`text-xs sm:text-sm font-semibold tracking-[0.25em] uppercase ${
-                isBlue ? 'text-secondary-100' : 'text-primary-100'
-              }`}
-            >
-              {panel.eyebrow}
-            </span>
-            <span className="h-px w-12 sm:w-16 bg-white/50" />
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-white/10 backdrop-blur-sm border border-white/25 text-white">
-              {panel.universe.label}
-            </span>
-          </div>
-          <h2
-            className="normal-case font-heading text-white mb-6 sm:mb-8 tracking-tight"
-            style={{ fontSize: 'clamp(1.9rem, 5.2vw, 4.5rem)', lineHeight: 1.05 }}
-          >
-            <span className="block">{panel.headline}</span>
-            <span
-              className={`block bg-clip-text text-transparent ${
-                isBlue
-                  ? 'bg-gradient-to-r from-secondary-100 via-white to-secondary-100'
-                  : 'bg-gradient-to-r from-primary-100 via-white to-primary-100'
-              }`}
-            >
-              {panel.accent}
-            </span>
-          </h2>
-          <p className="text-white/85 text-sm sm:text-base md:text-lg leading-relaxed max-w-xl normal-case mb-8 sm:mb-10">
-            {panel.body}
-          </p>
-          <a
-            href="/inscription"
-            className={`inline-flex items-center gap-2 rounded-full px-6 py-3 sm:px-7 sm:py-3.5 text-sm sm:text-base font-semibold transition-transform hover:scale-[1.03] active:scale-95 ${
-              isBlue ? 'bg-white text-secondary-300' : 'bg-white text-primary-600'
+// Fixed text layer — every panel's content lives in the exact same spot;
+// only opacity crossfades between them, driven entirely by GSAP (never by
+// React state), so nothing ever "travels" with the sliding images behind
+// it.
+function PanelContent({ panel, contentRef }) {
+  const isBlue = panel.tone === 'blue';
+  const btnClass = isBlue ? 'btn-secondary' : 'btn-primary';
+  const chips = [panel.universe.nested.how.image, panel.universe.nested.who.image, panel.universe.nested.trust.image];
+
+  return (
+    <div
+      ref={contentRef}
+      className="absolute inset-0 h-full flex items-center px-6 sm:px-10 md:px-16 lg:px-24"
+      style={{ willChange: 'opacity' }}
+    >
+      <div className="max-w-3xl">
+        <span
+          className={`btn ${btnClass} !inline-flex !px-4 !py-1.5 !text-xs sm:!text-sm mb-6 sm:mb-8`}
+          style={{ transform: 'rotate(-3deg)' }}
+        >
+          {panel.eyebrow}
+        </span>
+        <h2
+          className="normal-case font-heading text-white mb-6 sm:mb-8 tracking-tight"
+          style={{ fontSize: 'clamp(1.9rem, 5.2vw, 4.5rem)', lineHeight: 1.05 }}
+        >
+          <span className="block">{panel.headline}</span>
+          <span
+            className={`block bg-clip-text text-transparent ${
+              isBlue
+                ? 'bg-gradient-to-r from-secondary-100 via-white to-secondary-100'
+                : 'bg-gradient-to-r from-primary-100 via-white to-primary-100'
             }`}
           >
+            {panel.accent}
+          </span>
+        </h2>
+        <p className="text-white/85 text-sm sm:text-base md:text-lg leading-relaxed max-w-xl normal-case mb-8 sm:mb-10">
+          {panel.body}
+        </p>
+        <div className="flex items-center gap-5 sm:gap-6 flex-wrap">
+          <a href="/inscription" className={`btn ${btnClass}`}>
             {panel.cta}
             <span aria-hidden>→</span>
           </a>
-        </div>
-
-        {/* Floating catalogue card — part of the same content block, so it
-            metamorphoses (fades/slides) in perfect sync with the text. */}
-        <div className="hidden sm:flex absolute left-6 md:left-10 lg:left-16 bottom-8 md:bottom-10 items-center gap-3 pl-3 pr-4 py-2.5 rounded-2xl bg-white/95 backdrop-blur-sm text-ink-900 shadow-xl">
-          <img src={panel.universe.image} alt="" className="w-11 h-11 rounded-xl object-cover" />
-          <div className="text-left">
-            <p className="text-[11px] uppercase tracking-wide text-ink-700 font-semibold">
-              Catalogue {panel.universe.label}
-            </p>
-            <p className="text-xs text-ink-900 font-semibold">Télécharger ↓</p>
+          <div className="hidden sm:flex -space-x-3">
+            {chips.map((src, ci) => (
+              <img
+                key={ci}
+                src={src}
+                alt=""
+                className="w-12 h-12 rounded-xl object-cover border-2 border-white shadow-lg"
+                style={{ transform: `rotate(${(ci - 1) * 9}deg)` }}
+              />
+            ))}
           </div>
         </div>
       </div>
@@ -257,47 +266,36 @@ function ParallaxStory() {
       const panels = panelRefs.current;
       const contents = contentRefs.current;
 
-      gsap.set(panels, { yPercent: 100 });
-      // Frame-0 exception: panel 0's content is always visible (rises as
-      // one block with its image, no separate crossfade needed since
-      // there's no previous panel text to hand off from).
-      gsap.set(contents[0], { opacity: 1, y: 0 });
-      // Every other panel's text/card starts hidden until its own
-      // metamorphosis fires.
-      gsap.set(contents.slice(1), { opacity: 0, y: 24 });
+      gsap.set(panels[0], { scale: 0.4 });
+      gsap.set(panels.slice(1), { yPercent: 100 });
+      // Panel 0's text is visible from the very start (nothing to hand off
+      // from except the static hero) and never moves.
+      gsap.set(contents[0], { opacity: 1, pointerEvents: 'auto' });
+      gsap.set(contents.slice(1), { opacity: 0, pointerEvents: 'none', attr: { 'aria-hidden': 'true' } });
 
       const tl = gsap.timeline({ defaults: { ease: 'none' } });
 
+      // Panel 0: image grows from a small centred frame to full-screen,
+      // then holds — this is the "wait for it to fill the page" beat
+      // before any real scroll-driven motion starts.
+      tl.to(panels[0], { scale: 1, duration: INTRO_DURATION, ease: 'power2.out' }, 0);
+
       PANELS.forEach((_, i) => {
-        const startTime = i * STAGGER;
+        if (i === 0) return;
+        const startTime = INTRO_DURATION + (i - 1) * STAGGER;
 
         tl.to(panels[i], { yPercent: 0, duration: RISE_DURATION }, startTime);
+        tl.to(panels[i - 1], { yPercent: PUSH_Y, duration: RISE_DURATION }, startTime);
 
-        if (i > 0) {
-          tl.to(panels[i - 1], { yPercent: PUSH_Y, duration: RISE_DURATION }, startTime);
-
-          const intersectTime = startTime + 0.5;
-          const half = META_DURATION / 2;
-          tl.to(
-            contents[i - 1],
-            { opacity: 0, y: -24, duration: META_DURATION, ease: 'power2.inOut' },
-            intersectTime - half
-          );
-          tl.to(
-            contents[i],
-            { opacity: 1, y: 0, duration: META_DURATION, ease: 'power2.inOut' },
-            intersectTime - half
-          );
-          // Accessibility: only the panel currently "readable" (post
-          // crossfade) is exposed to assistive tech / tab order — driven by
-          // GSAP itself so it never fights React for control of this
-          // pinned subtree.
-          tl.set(contents[i - 1], { attr: { 'aria-hidden': 'true' } }, intersectTime);
-          tl.set(contents[i], { attr: { 'aria-hidden': 'false' } }, intersectTime);
-        }
+        const intersectTime = startTime + RISE_DURATION * 0.5;
+        const half = META_DURATION / 2;
+        tl.to(contents[i - 1], { opacity: 0, duration: META_DURATION, ease: 'power2.inOut' }, intersectTime - half);
+        tl.to(contents[i], { opacity: 1, duration: META_DURATION, ease: 'power2.inOut' }, intersectTime - half);
+        tl.set(contents[i - 1], { pointerEvents: 'none', attr: { 'aria-hidden': 'true' } }, intersectTime);
+        tl.set(contents[i], { pointerEvents: 'auto', attr: { 'aria-hidden': 'false' } }, intersectTime);
       });
 
-      const totalUnits = (PANELS.length - 1) * STAGGER + RISE_DURATION;
+      const totalUnits = INTRO_DURATION + (PANELS.length - 2) * STAGGER + RISE_DURATION;
 
       ScrollTrigger.create({
         animation: tl,
@@ -322,14 +320,14 @@ function ParallaxStory() {
     >
       <StaticHeroLayer />
       {PANELS.map((panel, i) => (
-        <StoryPanel
-          key={panel.universe.id}
-          panel={panel}
-          index={i}
-          panelRef={(el) => (panelRefs.current[i] = el)}
-          contentRef={(el) => (contentRefs.current[i] = el)}
-        />
+        <ImageLayer key={panel.universe.id} panel={panel} index={i} panelRef={(el) => (panelRefs.current[i] = el)} />
       ))}
+      {/* Fixed text layer sits above every image layer and never moves. */}
+      <div className="absolute inset-0 z-30">
+        {PANELS.map((panel, i) => (
+          <PanelContent key={panel.universe.id} panel={panel} contentRef={(el) => (contentRefs.current[i] = el)} />
+        ))}
+      </div>
     </section>
   );
 }
