@@ -1,0 +1,159 @@
+# Configuration centralisée des agrégateurs de paiement
+# Rechargeable à chaud via POST /admin/payment/reload-config
+# Clés API EXCLUSIVEMENT dans les variables d'environnement
+
+# Agrégateur par défaut
+defaultAggregator: orangeMoney
+
+# Liste des agrégateurs par pays et méthode
+aggregators:
+  # ===== CAMEROUN =====
+  orangeMoney:
+    name: Orange Money Cameroun
+    country: CM
+    methods:
+      - MOBILE_MONEY
+      - USSD
+    priority: 1
+    active: true
+    enabled: true
+    
+    # Endpoints API
+    endpoint: https://api.orange.cameroun.com/payment
+    initiateEndpoint: /initiate
+    checkStatusEndpoint: /check-status
+    refundEndpoint: /refund
+    healthEndpoint: /health
+    
+    # Configuration technique
+    timeout: 10000
+    retryAttempts: 3
+    retryDelay: 2000
+    healthCheckInterval: 300000 # 5 minutes
+    
+    # Clés API (lues depuis env)
+    apiKeyEnv: ORANGE_MONEY_API_KEY
+    apiSecretEnv: ORANGE_MONEY_API_SECRET
+    
+    # Signature
+    signatureAlgorithm: HMAC-SHA256
+    signatureHeader: X-Signature
+    
+    # Limites
+    minAmount: 100 # XAF
+    maxAmount: 1000000 # XAF
+    
+    # Failover
+    fallbackAggregator: null # null = pas de fallback pour MVP
+    
+    # Monitoring
+    alertEmail: alerts@moledievents.cm
+    alertOnFailure: true
+    
+    description: "Agrégateur principal pour Cameroun"
+
+  # V1+ : MTN Mobile Money Cameroun
+  mtnCameroun:
+    name: MTN Mobile Money Cameroun
+    country: CM
+    methods:
+      - MOBILE_MONEY
+    priority: 2
+    active: false # Désactivé pour MVP
+    enabled: false
+    
+    endpoint: https://api.mtn.cm/payment
+    initiateEndpoint: /ussd/initiate
+    checkStatusEndpoint: /ussd/status
+    refundEndpoint: /ussd/refund
+    healthEndpoint: /health
+    
+    timeout: 10000
+    retryAttempts: 3
+    retryDelay: 2000
+    healthCheckInterval: 300000
+    
+    apiKeyEnv: MTN_MONEY_API_KEY
+    apiSecretEnv: MTN_MONEY_API_SECRET
+    
+    signatureAlgorithm: HMAC-SHA256
+    
+    minAmount: 100
+    maxAmount: 500000
+    
+    fallbackAggregator: orangeMoney
+    alertEmail: alerts@moledievents.cm
+    alertOnFailure: true
+    
+    description: "Fallback pour Cameroun"
+
+  # V1+ : Orange Money Sénégal
+  orangeMoneySenegal:
+    name: Orange Money Sénégal
+    country: SN
+    methods:
+      - MOBILE_MONEY
+    priority: 3
+    active: false
+    enabled: false
+    
+    endpoint: https://api.orange.sn/payment
+    initiateEndpoint: /initiate
+    checkStatusEndpoint: /check-status
+    refundEndpoint: /refund
+    healthEndpoint: /health
+    
+    timeout: 10000
+    retryAttempts: 3
+    retryDelay: 2000
+    healthCheckInterval: 300000
+    
+    apiKeyEnv: ORANGE_MONEY_SN_API_KEY
+    apiSecretEnv: ORANGE_MONEY_SN_API_SECRET
+    
+    signatureAlgorithm: HMAC-SHA256
+    
+    minAmount: 100 # CFA
+    maxAmount: 2000000
+    
+    fallbackAggregator: null
+    alertEmail: alerts@moledievents.cm
+    alertOnFailure: true
+    
+    description: "Orange Money Sénégal"
+
+# Configuration du sélecteur dynamique
+aggregatorSelector:
+  strategy: priorityBased # V1: automaticBased
+  fallbackEnabled: true
+  degradedStatusDuration: 300000 # 5 minutes
+  alertOnFailover: true
+
+# Configuration des webhooks
+webhooks:
+  responseTimeout: 5000
+  retryAttempts: 3
+  retryDelay: 1000
+  maxRetryDuration: 300000 # 5 minutes max
+
+# Configuration de la réconciliation
+reconciliation:
+  enabled: true
+  cronSchedule: "0 2 * * *" # 2h du matin quotidien
+  lookbackDays: 3
+  alertThreshold: 0.01 # 1 centime d'écart = alerte
+  timeoutPerAggregator: 30000
+
+# Configuration du health check global
+healthCheck:
+  enabled: true
+  cronSchedule: "*/5 * * * *" # Toutes les 5 minutes
+  timeout: 10000
+  logResults: true
+
+# Configuration des logs
+logging:
+  level: INFO # DEBUG | INFO | WARN | ERROR
+  format: JSON # JSON | TEXT
+  includePayload: false # Ne jamais logger les données sensibles
+  correlationIdHeader: X-Correlation-ID
