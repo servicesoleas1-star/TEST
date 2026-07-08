@@ -1,0 +1,111 @@
+erDiagram
+  EVENTS ||--o{ EVENT_VENUES : "event_id"
+  EVENTS ||--o{ TICKET_TYPES : "event_id"
+  EVENTS ||--o{ PROMO_CODES : "event_id"
+  EVENTS ||--o{ TICKET_PURCHASES : "event_id"
+  TICKET_TYPES ||--o{ TICKET_PURCHASES : "ticket_type_id"
+  PROMO_CODES ||--o{ TICKET_PURCHASES : "promo_code_id"
+  TICKET_TYPES ||--o{ TEMPORARY_RESERVATIONS : "ticket_type_id"
+  TICKET_PURCHASES ||--o{ ENTRY_SCANS : "purchase_id"
+  EVENTS ||--o{ ENTRY_SCANS : "event_id"
+  EVENTS ||--o{ PROGRAM_SESSIONS : "event_id"
+  EVENTS ||--o{ SPEAKERS : "event_id"
+  SPEAKERS ||--o{ PROGRAM_SESSIONS : "speaker_id"
+  EVENTS ||--o{ EVENT_SPONSORS : "event_id"
+  EVENTS ||--o{ MERCH_ITEMS : "event_id"
+  MERCH_ITEMS ||--o{ MERCH_PURCHASES : "item_id"
+  EVENTS ||--o{ MERCH_PURCHASES : "event_id"
+  EVENTS ||--o{ EVENT_GALLERIES : "event_id"
+  EVENTS ||--o{ EVENT_RESOURCES : "event_id"
+  EVENTS ||--o{ EVENT_REPORTS : "event_id"
+  EVENTS {
+    uuid event_id PK
+    uuid user_id FK
+    string slug
+    string title
+    event_status status
+  }
+  EVENT_VENUES {
+    uuid venue_id PK
+    uuid event_id FK
+    string hall_name
+  }
+  TICKET_TYPES {
+    uuid ticket_type_id PK
+    uuid event_id FK
+    string name
+  }
+  PROMO_CODES {
+    uuid promo_id PK
+    uuid event_id FK
+    string code
+  }
+  TICKET_PURCHASES {
+    uuid purchase_id PK
+    uuid event_id FK
+    uuid ticket_type_id FK
+    uuid visitor_id FK
+    uuid user_id FK
+    uuid transaction_id FK
+    ticket_status status
+    string buyer_name
+    string buyer_email
+    uuid promo_code_id FK
+    string _more_columns_omitted
+  }
+  TEMPORARY_RESERVATIONS {
+    uuid reservation_id PK
+    uuid ticket_type_id FK
+    uuid visitor_id FK
+  }
+  ENTRY_SCANS {
+    uuid scan_id PK
+    uuid purchase_id FK
+    uuid event_id FK
+    uuid operator_id FK
+  }
+  PROGRAM_SESSIONS {
+    uuid session_id PK
+    uuid event_id FK
+    string title
+    uuid speaker_id FK
+  }
+  SPEAKERS {
+    uuid speaker_id PK
+    uuid event_id FK
+    string name
+    string title
+  }
+  EVENT_SPONSORS {
+    uuid sponsor_id PK
+    uuid event_id FK
+    string name
+  }
+  MERCH_ITEMS {
+    uuid item_id PK
+    uuid event_id FK
+    string name
+  }
+  MERCH_PURCHASES {
+    uuid order_id PK
+    uuid item_id FK
+    uuid event_id FK
+    uuid visitor_id FK
+    uuid transaction_id FK
+  }
+  EVENT_GALLERIES {
+    uuid item_id PK
+    uuid event_id FK
+    media_type media_type
+  }
+  EVENT_RESOURCES {
+    uuid resource_id PK
+    uuid event_id FK
+    string title
+  }
+  EVENT_REPORTS {
+    uuid report_id PK
+    uuid event_id FK
+    event_complaint_type complaint_type
+    uuid ticket_id FK
+  }

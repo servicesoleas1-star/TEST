@@ -1,33 +1,75 @@
-# Moledi Event
+# Moledi Event (Liboka Vote)
 
-Migration de `moledievents1` vers un déploiement Vercel (frontend Vite/React + API serverless).
+Frontend React/Vite + backend Express/PostgreSQL, pensés pour tourner en
+local puis être déployés tels quels sur un VPS. Plus aucune dépendance à
+Vercel ou Supabase.
 
 ## Structure
 
-- `src/`, `public/`, `index.html` — application React/Vite (inchangée).
-- `api/` — fonctions serverless Vercel (remplacent l'ancien `server.js` Express) :
-  - `api/auth/login.js` — connexion (`/api/auth/login`)
-  - `api/countries.js` — pays et devises (`/api/countries`)
-  - `api/payment-methods.js` — moyens de paiement (`/api/payment-methods`)
-  - `api/health.js` — health check (`/api/health`)
-  - `api/_supabase.js` — client Supabase partagé (préfixe `_` = pas une route)
+- `src/`, `public/`, `index.html` — application React/Vite (pages vitrine,
+  vote, espace organisateur, support).
+- `moledi-backend/` — API Express (auth, votes, dashboard organisateur,
+  paiement Orange Money, support). Se connecte directement à PostgreSQL
+  via `pg` (pas d'ORM, pas de service tiers).
+- `db/` — schéma PostgreSQL complet (migrations numérotées, seeds de démo,
+  ERD, script d'installation). Voir `db/README.md` pour le détail.
 
-## Variables d'environnement (à définir dans Vercel, jamais commitées)
+## Prérequis
 
-- `SUPABASE_URL`
-- `SUPABASE_API_KEY`
+- Node.js ≥ 18
+- PostgreSQL ≥ 15 (`psql` en ligne de commande)
+- Git
 
-Dashboard Supabase → Project Settings → API pour récupérer ces valeurs.
+## Installation locale
 
-## Développement local
+### 1. Base de données
+
+```bash
+cd db
+export PGUSER=liboka
+export PGPASSWORD=choisissez_un_mot_de_passe
+sudo -u postgres psql -c "CREATE USER liboka WITH PASSWORD 'choisissez_un_mot_de_passe' SUPERUSER;"
+./scripts/setup_db.sh liboka_vote
+```
+
+Voir `db/README.md` pour les étapes détaillées (tests d'intégrité, seed de démo).
+
+### 2. Backend (API)
+
+```bash
+cd moledi-backend
+npm install
+cp .env.example .env   # renseigner DATABASE_URL, JWT_SECRET, etc.
+npm run dev            # démarre sur http://localhost:4000
+```
+
+### 3. Frontend
 
 ```bash
 npm install
-npm run dev        # front Vite seul, sans les fonctions /api
+npm run dev             # démarre sur http://localhost:5173
 ```
 
-Pour tester les fonctions `/api` en local avec Supabase, utiliser `vercel dev` (CLI Vercel), qui exécute à la fois le front Vite et les fonctions serverless.
+Le frontend appelle l'API en relatif (`/api/...`) ; en dev, Vite relaie ces
+appels vers `http://localhost:4000` (voir `vite.config.js`). En production,
+c'est nginx qui fera ce même relais devant les deux process Node.
 
-## Déploiement
+## Voir le résultat sur mobile (hors réseau local)
 
-Le déploiement se fait via l'intégration GitHub de Vercel : chaque push sur une branche déclenche un build (preview), et un push sur `main` déploie en production.
+Pour générer un lien public temporaire vers ton serveur de dev, sans être
+sur le même Wi-Fi que la machine :
+
+```bash
+npx ngrok http 5173
+```
+
+`ngrok` fournit une URL HTTPS publique qui pointe vers ton `vite dev`
+local (à installer une fois : compte gratuit sur ngrok.com + `ngrok config
+add-authtoken ...`).
+
+## Déploiement (VPS)
+
+Les deux process (`npm run build` + serveur statique ou nginx pour le
+frontend, `moledi-backend` en process Node géré par PM2/systemd) tournent
+tels quels sur le VPS, avec la même base PostgreSQL — aucune adaptation de
+code entre local et prod.

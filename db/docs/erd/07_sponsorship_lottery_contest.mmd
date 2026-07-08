@@ -1,0 +1,110 @@
+erDiagram
+  SPONSOR_CALLS ||--o{ SPONSORSHIP_LEVELS : "call_id"
+  SPONSOR_CALLS ||--o{ SPONSOR_APPLICATIONS : "call_id"
+  SPONSORSHIP_LEVELS ||--o{ SPONSOR_APPLICATIONS : "level_id"
+  CONTESTS ||--o{ PRIZES : "contest_id"
+  CONTESTS ||--o{ CONTEST_PARTICIPANTS : "contest_id"
+  CONTEST_PARTICIPANTS ||--o{ SUBMISSIONS : "participant_id"
+  CONTESTS ||--o{ SUBMISSIONS : "contest_id"
+  CONTESTS ||--o{ BRACKET_MATCHES : "contest_id"
+  CONTEST_PARTICIPANTS ||--o{ BRACKET_MATCHES : "participant_a_id"
+  ESCROW_DEPOSITS ||--o{ CONTESTS : "escrow_id"
+  ESCROW_DEPOSITS ||--o{ PRIZE_PAYMENTS : "escrow_id"
+  LOTTERIES ||--o{ PRIZES : "lottery_id"
+  LOTTERIES ||--o{ LOTTERY_TICKETS : "lottery_id"
+  LOTTERIES ||--o{ LOTTERY_DRAWS : "lottery_id"
+  SPONSOR_CALLS {
+    uuid call_id PK
+    uuid user_id FK
+    string slug
+    string title
+    call_status status
+  }
+  SPONSORSHIP_LEVELS {
+    uuid level_id PK
+    uuid call_id FK
+    level_name name
+    decimal min_amount
+  }
+  SPONSOR_APPLICATIONS {
+    uuid application_id PK
+    uuid call_id FK
+    string company_name
+    string email
+    uuid level_id FK
+    uuid transaction_id FK
+    app_status status
+  }
+  CONTESTS {
+    uuid contest_id PK
+    uuid user_id FK
+    string slug
+    string title
+    contest_status status
+    uuid escrow_id FK
+  }
+  PRIZES {
+    uuid prize_id PK
+    uuid contest_id FK
+    uuid lottery_id FK
+    string title
+  }
+  CONTEST_PARTICIPANTS {
+    uuid participant_id PK
+    uuid contest_id FK
+    uuid visitor_id FK
+    uuid user_id FK
+    string name
+    string email
+    participant_status status
+    uuid entry_fee_transaction_id FK
+  }
+  SUBMISSIONS {
+    uuid submission_id PK
+    uuid participant_id FK
+    uuid contest_id FK
+  }
+  BRACKET_MATCHES {
+    uuid match_id PK
+    uuid contest_id FK
+    uuid participant_a_id FK
+    uuid participant_b_id FK
+    uuid winner_id FK
+  }
+  ESCROW_DEPOSITS {
+    uuid escrow_id PK
+    uuid campaign_id FK
+    uuid user_id FK
+    decimal amount
+    uuid deposit_tx_id FK
+    escrow_status status
+    uuid winner_id
+  }
+  PRIZE_PAYMENTS {
+    uuid payment_id PK
+    uuid escrow_id FK
+    uuid winner_id
+    uuid payout_tx_id FK
+    payout_status status
+  }
+  LOTTERIES {
+    uuid lottery_id PK
+    uuid user_id FK
+    uuid event_id FK
+    string slug
+    string title
+    lottery_status status
+  }
+  LOTTERY_TICKETS {
+    uuid ticket_id PK
+    uuid lottery_id FK
+    string buyer_name
+    string buyer_email
+    uuid visitor_id FK
+    uuid transaction_id FK
+    lottery_ticket_status status
+  }
+  LOTTERY_DRAWS {
+    uuid draw_id PK
+    uuid lottery_id FK
+  }

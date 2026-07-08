@@ -1,0 +1,99 @@
+erDiagram
+  FUNDRAISERS ||--o{ DONATIONS : "fundraiser_id"
+  FUNDRAISERS ||--o{ FUNDRAISER_COMMENTS : "fundraiser_id"
+  FUNDRAISERS ||--o{ FUNDRAISER_UPDATES : "fundraiser_id"
+  CF_PROJECTS ||--o{ TIERS : "project_id"
+  TIERS ||--o{ TIER_OPTIONS : "tier_id"
+  CF_PROJECTS ||--o{ CF_CONTRIBUTIONS : "project_id"
+  TIERS ||--o{ CF_CONTRIBUTIONS : "tier_id"
+  CF_PROJECTS ||--o{ CF_TEAM_MEMBERS : "project_id"
+  CF_PROJECTS ||--o{ CF_UPDATES : "project_id"
+  CF_PROJECTS ||--o{ CF_QUESTIONS : "project_id"
+  CF_PROJECTS ||--o{ CF_COMMENTS : "project_id"
+  FUNDRAISERS {
+    uuid fundraiser_id PK
+    uuid user_id FK
+    string slug
+    string title
+    decimal goal_amount
+    decimal collected_amount
+    fundraiser_status status
+    decimal minimum_amount
+  }
+  DONATIONS {
+    uuid donation_id PK
+    uuid fundraiser_id FK
+    uuid visitor_id FK
+    uuid user_id FK
+    uuid transaction_id FK
+    decimal amount
+    string donor_name
+    string email
+    donation_status status
+    string short_id
+    string _more_columns_omitted
+  }
+  FUNDRAISER_COMMENTS {
+    uuid comment_id PK
+    uuid fundraiser_id FK
+    string name
+    comment_status status
+  }
+  FUNDRAISER_UPDATES {
+    uuid update_id PK
+    uuid fundraiser_id FK
+    string title
+  }
+  CF_PROJECTS {
+    uuid project_id PK
+    uuid user_id FK
+    string slug
+    string title
+    decimal goal_amount
+    decimal raised_amount
+    cf_status status
+  }
+  TIERS {
+    uuid tier_id PK
+    uuid project_id FK
+    string name
+    decimal min_amount
+  }
+  TIER_OPTIONS {
+    uuid option_id PK
+    uuid tier_id FK
+  }
+  CF_CONTRIBUTIONS {
+    uuid contribution_id PK
+    uuid project_id FK
+    uuid tier_id FK
+    uuid visitor_id FK
+    uuid user_id FK
+    uuid transaction_id FK
+    decimal amount
+    string contributor_name
+    string email
+    contrib_status status
+    string _more_columns_omitted
+  }
+  CF_TEAM_MEMBERS {
+    uuid member_id PK
+    uuid project_id FK
+    string name
+    string role
+  }
+  CF_UPDATES {
+    uuid update_id PK
+    uuid project_id FK
+    string title
+  }
+  CF_QUESTIONS {
+    uuid question_id PK
+    uuid project_id FK
+  }
+  CF_COMMENTS {
+    uuid comment_id PK
+    uuid project_id FK
+    string name
+    comment_status status
+  }

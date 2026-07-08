@@ -1,0 +1,94 @@
+erDiagram
+  AGGREGATORS ||--o{ TRANSACTIONS : "aggregator_id"
+  AGGREGATORS ||--o{ PAYOUT_REQUESTS : "aggregator_id"
+  AGGREGATORS ||--o{ AGGREGATOR_HEALTH_LOGS : "aggregator_id"
+  TRANSACTIONS ||--o{ FAILOVER_LOGS : "transaction_id"
+  AGGREGATORS ||--o{ FAILOVER_LOGS : "source_agg_id"
+  AGGREGATORS ||--o{ WEBHOOK_LOGS : "aggregator_id"
+  TRANSACTIONS ||--o{ WEBHOOK_LOGS : "transaction_id"
+  AGGREGATORS ||--o{ PSP_RECONCILIATIONS : "aggregator_id"
+  TRANSACTIONS {
+    uuid transaction_id PK
+    uuid campaign_id FK
+    campaign_type campaign_type
+    tx_type type
+    uuid visitor_id FK
+    uuid user_id FK
+    decimal gross_amount
+    tx_status status
+    uuid aggregator_id FK
+    string external_tx_id
+    string _more_columns_omitted
+  }
+  USER_COMMISSION_CONFIGS {
+    uuid config_id PK
+    uuid user_id FK
+    campaign_type campaign_type
+    uuid configured_by FK
+  }
+  COMMISSION_CONFIGS {
+    uuid config_id PK
+    commission_type type
+    decimal floor_amount
+    uuid modified_by FK
+  }
+  PAYOUT_REQUESTS {
+    uuid payout_id PK
+    uuid user_id FK
+    decimal requested_amount
+    decimal net_amount
+    uuid aggregator_id FK
+    payout_status status
+  }
+  ORGANIZER_BALANCES {
+    uuid balance_id PK
+    uuid user_id FK
+    decimal available_amount
+    decimal reserved_amount
+  }
+  AGGREGATORS {
+    uuid aggregator_id PK
+    string name
+    agg_status operational_status
+  }
+  AGGREGATOR_HEALTH_LOGS {
+    uuid log_id PK
+    uuid aggregator_id FK
+  }
+  FAILOVER_LOGS {
+    uuid failover_id PK
+    uuid transaction_id FK
+    uuid source_agg_id FK
+    uuid target_agg_id FK
+  }
+  WEBHOOK_LOGS {
+    uuid webhook_log_id PK
+    uuid aggregator_id FK
+    uuid transaction_id FK
+    string processing_status
+  }
+  PSP_RECONCILIATIONS {
+    uuid recon_id PK
+    uuid aggregator_id FK
+    decimal discrepancy_amount
+  }
+  COUNTRY_CONFIGS {
+    string country_code PK
+    string country_name
+  }
+  MINIMUM_PAYOUT_CONFIGS {
+    uuid config_id PK
+    uuid user_id FK
+    decimal min_amount
+  }
+  PAYOUT_BLOCKS {
+    uuid block_id PK
+    uuid user_id FK
+    uuid blocked_by FK
+    uuid unblocked_by FK
+  }
+  REFUND_POLICIES {
+    uuid policy_id PK
+    uuid campaign_id FK
+    campaign_type campaign_type
+  }
