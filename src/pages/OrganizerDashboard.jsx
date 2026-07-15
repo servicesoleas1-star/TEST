@@ -108,21 +108,21 @@ function CampaignRow({ campaign }) {
       <td className="py-3">
         <div className="flex gap-2">
           <Link
-            to={`/organisateur/campagnes/${campaign.campaign_id}/candidats`}
+            to={`/dashboard/campagnes/${campaign.campaign_id}/candidats`}
             className="p-1.5 rounded-lg border border-ink-200 text-secondary"
             title="Candidats"
           >
             <Users size={14} />
           </Link>
           <Link
-            to={`/organisateur/campagnes/${campaign.campaign_id}/codes-uniques`}
+            to={`/dashboard/campagnes/${campaign.campaign_id}/codes`}
             className="p-1.5 rounded-lg border border-ink-200 text-secondary"
             title="Codes uniques"
           >
             <KeyRound size={14} />
           </Link>
           <Link
-            to={`/organisateur/campagnes/${campaign.campaign_id}/analytics`}
+            to={`/dashboard/campagnes/${campaign.campaign_id}/analytics`}
             className="p-1.5 rounded-lg border border-ink-200 text-secondary"
             title="Analytics"
           >
@@ -317,7 +317,7 @@ export default function OrganizerDashboardPage() {
             <Download size={16} /> {exporting ? "Génération..." : "Export financier"}
           </button>
           <Link
-            to="/organisateur/parametres"
+            to="/dashboard/parametres"
             className="p-2 rounded-xl border border-ink-200 text-secondary"
             title="Paramètres"
           >

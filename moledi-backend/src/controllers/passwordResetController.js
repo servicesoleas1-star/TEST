@@ -1,5 +1,6 @@
 import { generateSecureToken } from "../utils/tokens.js";
 import { hashPassword } from "../utils/password.js";
+import { sendMail } from "../utils/mailer.js";
 import {
   findUserByEmail,
   invalidatePasswordResetTokens,
@@ -41,10 +42,16 @@ export async function forgotPassword(req, res) {
     const token = generateSecureToken();
     await savePasswordResetToken(token, email, RESET_TOKEN_TTL_HOURS);
 
-    // TODO: remplacer par un vrai envoi d'email (SendGrid, SES, Postmark...)
-    console.log(
-      `[EMAIL] Lien de réinitialisation pour ${email} : /reinitialiser-mot-de-passe?token=${token}`
-    );
+    const link = `${process.env.FRONTEND_URL || "http://localhost:5173"}/reinitialiser-mot-de-passe?token=${token}`;
+    try {
+      await sendMail({
+        to: email,
+        subject: "Réinitialisation de votre mot de passe — Moledi Events",
+        html: `<p>Cliquez sur le lien ci-dessous pour choisir un nouveau mot de passe (valable ${RESET_TOKEN_TTL_HOURS}h) :</p><p><a href="${link}">${link}</a></p><p>Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>`,
+      });
+    } catch (err) {
+      console.warn("Envoi de l'email de réinitialisation échoué :", err.message);
+    }
   }
 
   // Réponse strictement identique dans les deux cas.

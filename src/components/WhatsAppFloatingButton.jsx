@@ -35,7 +35,7 @@ export default function WhatsAppFloatingButton({
       aria-label="Contacter le support via WhatsApp"
       className="
         fixed z-50
-        bottom-4 right-4
+        bottom-20 right-4
         sm:bottom-5 sm:right-5
         lg:bottom-6 lg:right-6
         w-14 h-14

@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import SiteHeader from '../components/SiteHeader';
@@ -10,10 +10,11 @@ gsap.registerPlugin(ScrollTrigger);
 
 
 // --- Couverture géographique (backlog LAN-01, section Coverage) ---
-// Same pattern as Tarifs: countries and payment methods are read live from
-// `/api/countries` / `/api/payment-methods` (the real CountryConfig /
-// Aggregator tables), not a hardcoded list. Empty table = empty strip,
-// nothing invented client-side.
+// Same pattern as Tarifs: countries are read live from `/api/countries`
+// (the real CountryConfig table), not a hardcoded list. Empty table = empty
+// strip, nothing invented client-side. Payment-method logos are shown on
+// the Tarifs page only (they still fall back to text initials there when no
+// logo_url is configured) -- not repeated here.
 function useCountries() {
   const [countries, setCountries] = useState([]);
 
@@ -35,27 +36,6 @@ function useCountries() {
   return { countries };
 }
 
-function usePaymentMethods() {
-  const [methods, setMethods] = useState([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/api/payment-methods')
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled) setMethods(data.ok ? data.methods : []);
-      })
-      .catch(() => {
-        if (!cancelled) setMethods([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { methods };
-}
-
 // --- Les 6 univers Moledi Event (backlog LAN-01, ZUIHubStory) ---
 /**
  * The 6 Moledi Events universes, ordered as validated by the user.
@@ -74,6 +54,7 @@ export const universes = [
     image: illustration.votes,
     definition:
       "Organisez un vote fiable et transparent, du concours de talents à l'élection interne.",
+    cta: 'Lancer mon concours de vote et scrutin',
     nested: {
       how: {
         title: 'Comment ça marche',
@@ -101,6 +82,7 @@ export const universes = [
     image: illustration.ticketing,
     definition:
       "Vendez vos billets en ligne et gérez tout l'accès à votre événement, du concert à la conférence.",
+    cta: 'Vendre les billets de mon événement',
     nested: {
       how: {
         title: 'Comment ça marche',
@@ -127,6 +109,7 @@ export const universes = [
     image: illustration.donations,
     definition:
       "Recevez des dons ou lancez une cagnotte pour une cause, une personne ou un événement personnel.",
+    cta: 'Lancer une cagnotte',
     nested: {
       how: {
         title: 'Comment ça marche',
@@ -154,6 +137,7 @@ export const universes = [
     image: illustration.crowdfunding,
     definition:
       'Financez votre projet en mobilisant une communauté autour d’un objectif commun.',
+    cta: 'Lancer un projet pour me faire financer',
     nested: {
       how: {
         title: 'Comment ça marche',
@@ -180,6 +164,7 @@ export const universes = [
     image: illustration.sponsoring,
     definition:
       "Mettez en relation votre événement avec des marques prêtes à investir en visibilité.",
+    cta: 'Chercher un sponsor',
     nested: {
       how: {
         title: 'Comment ça marche',
@@ -207,6 +192,7 @@ export const universes = [
     image: illustration.contests,
     definition:
       'Organisez un tirage au sort ou un jeu-concours certifié, sans contestation possible.',
+    cta: 'Organiser un tirage ou un jeu-concours',
     nested: {
       how: {
         title: 'Comment ça marche',
@@ -367,12 +353,6 @@ export function Hero() {
 
 gsap.registerPlugin(ScrollTrigger);
 
-// Once the visitor has ridden the story all the way through the finale, it
-// is remembered for the rest of the tab session — scrolling back up into
-// the section afterwards shows the resting final frame instead of replaying
-// the whole thing. A hard refresh is the only way to see it again.
-const DONE_KEY = 'moledi_zui_done';
-
 const BLOCK_W = 640;
 const BLOCK_H = 780;
 // Wide ellipse rather than a circle: on a wide desktop viewport the height
@@ -438,7 +418,7 @@ const FLIGHT_STYLES = [
 const FINALE_SLOGAN_LINE_1 = 'Faites entrer la fête';
 const FINALE_SLOGAN_LINE_2 = 'dans votre poche';
 
-function ZUIHubStory() {
+export function ZUIHubStory({ onReplay }) {
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const imgRefs = useRef([]);
@@ -451,7 +431,6 @@ function ZUIHubStory() {
   const logoRef = useRef(null);
   const irisRef = useRef(null);
   const finaleTextRef = useRef(null);
-  const replayButtonRef = useRef(null);
   const tlRef = useRef(null);
   const stRef = useRef(null);
   const stopsRef = useRef([]);
@@ -460,17 +439,7 @@ function ZUIHubStory() {
   const accumRef = useRef(0);
   const lastScrollRef = useRef(0);
 
-  // Story already finished once this tab session — render the resting
-  // final frame statically, no pin, no replay (only a hard refresh resets
-  // sessionStorage and brings the animated version back).
-  const [alreadyDone] = useState(() => {
-    try {
-      return sessionStorage.getItem(DONE_KEY) === '1';
-    } catch {
-      return false;
-    }
-  });
-  const [finished, setFinished] = useState(alreadyDone);
+  const [finished, setFinished] = useState(false);
 
   useLayoutEffect(() => {
     const ctx = gsap.context(() => {
@@ -489,7 +458,6 @@ function ZUIHubStory() {
         (viewportW * 0.97) / (maxX * 2),
         (usableH * 0.94) / (maxY * 2)
       );
-      const mobile = viewportW < 768;
       // Always clamp to the viewport (not just on mobile) so a bigger
       // BLOCK_W never overflows a narrower desktop/tablet window — on wide
       // screens this resolves to 1 exactly as before, no regression there.
@@ -510,22 +478,6 @@ function ZUIHubStory() {
       gsap.set(logoRef.current, { opacity: 1, filter: 'blur(0px)' });
       gsap.set(irisRef.current, { scale: 0 });
       gsap.set(finaleTextRef.current, { opacity: 0, scale: 0.85, x: 0, filter: 'blur(0px)' });
-      gsap.set(replayButtonRef.current, { opacity: 0, pointerEvents: 'none' });
-
-      // Already rode the full story this session — jump straight to the
-      // finished, shrunk-recap resting state (skip building the
-      // scroll-jacking timeline altogether; no pin is created below).
-      if (alreadyDone) {
-        gsap.set(blockRefs.current, { opacity: 0 });
-        gsap.set(logoRef.current, { opacity: 0 });
-        gsap.set(finaleTextRef.current, {
-          opacity: 1,
-          scale: mobile ? 0.62 : 0.42,
-          x: mobile ? '-14vw' : '-30vw',
-        });
-        gsap.set(replayButtonRef.current, { opacity: 1, pointerEvents: 'auto' });
-        return;
-      }
 
       // This timeline is never scrubbed by raw scroll position. It's a fixed
       // score of camera moves, paused, that we play with tl.tweenTo() one
@@ -665,34 +617,21 @@ function ZUIHubStory() {
       tl.to(irisRef.current, { scale: 0, duration: 0.75, ease: 'power2.out' }, stackDoneAt + 0.4);
       tl.to(finaleTextRef.current, { opacity: 1, scale: 1, duration: 0.75, ease: 'back.out(1.3)' }, stackDoneAt + 0.4);
 
-      // Full-size moment: the slogan takes over the whole screen for a beat...
-      tl.to({}, { duration: 1.1 });
+      // Full-size moment: the slogan takes over the whole screen for a
+      // cinematic beat, then the pin releases (see markDoneIfFinished
+      // below) and scroll hands off to the standalone finale section right
+      // below in the document — a calmer, permanent restatement of the
+      // same line with more breathing room. No shrink, no replay: once the
+      // story has played through, it never plays again this page load.
+      tl.to({}, { duration: 0.6 });
 
-      // ...then shrinks down and settles to the left, freeing up a compact
-      // "reserved" strip. A "Relancer l'animation" button fades in on the
-      // right of that same strip at the same time. Less dramatic on mobile
-      // (screen's too narrow for a real left/right split).
-      tl.to(finaleTextRef.current, {
-        scale: mobile ? 0.62 : 0.42,
-        x: mobile ? '-14vw' : '-30vw',
-        duration: 0.8,
-        ease: 'power2.inOut',
-      });
-      tl.to(
-        replayButtonRef.current,
-        { opacity: 1, pointerEvents: 'auto', duration: 0.6, ease: 'power2.out' },
-        '<0.2'
-      );
-
-      // Stays right there — it does not fade away — until the visitor
-      // clicks "Relancer l'animation" (see the `replay` function below).
       tl.addLabel('finale-done');
       stops.push('finale-done');
 
       stopsRef.current = stops;
     }, rootRef);
     return () => ctx.revert();
-  }, [alreadyDone]);
+  }, []);
 
   // -- Step engine: pause-per-block, like a video you scroll to play/pause --
   // One scroll plays the next clip through to its resting pause point. No
@@ -712,12 +651,28 @@ function ZUIHubStory() {
 
   const markDoneIfFinished = (clamped, stopsLength) => {
     if (clamped !== stopsLength - 1) return;
-    try {
-      sessionStorage.setItem(DONE_KEY, '1');
-    } catch {
-      /* private browsing / storage disabled — harmless to skip */
-    }
     setFinished(true);
+    // Deliberately does NOT kill the ScrollTrigger here: killing it collapses
+    // its pin-spacer immediately, which shifts the page's scroll position and
+    // makes it jump away from the finale the moment it appears (confirmed
+    // live: the page landed on the footer instead of staying on the finale).
+    // The pin must stay alive for as long as the visitor is simply looking at
+    // the finished state. It only gets killed in handleReplay() below, right
+    // before the remount it triggers -- see that handler for why.
+  };
+
+  const handleReplay = () => {
+    // Un-pin and remove ScrollTrigger's spacer wrapper (it restructures the
+    // real DOM outside of React's knowledge) BEFORE onReplay() below asks
+    // the parent to remount this component (fresh `key`, see HeroStorySwap
+    // in Home1.jsx) -- otherwise React's own unmount and ScrollTrigger's
+    // cleanup fight over the same DOM nodes and React throws trying to
+    // remove a node ScrollTrigger already moved/removed itself (confirmed
+    // live on the 2nd replay). Safe to kill right here: it's the same click
+    // that immediately triggers the remount, so there's no in-between frame
+    // where the collapsed pin-spacer would be visible/cause a jump.
+    stRef.current?.kill();
+    onReplay?.();
   };
 
   const goToStep = (rawIndex) => {
@@ -794,35 +749,6 @@ function ZUIHubStory() {
     }
   };
 
-  // "Relancer l'animation" — rewinds the SAME GSAP timeline back to its
-  // start instead of remounting the component. Remounting (via a React
-  // `key` change) turned out to be unsafe here: ScrollTrigger's pin
-  // restructures the real DOM (wraps the section in a spacer) outside of
-  // React's own bookkeeping, and React crashed trying to unmount that
-  // subtree. Seeking the existing timeline back to 0 stays entirely
-  // inside GSAP's own domain, so nothing fights React for control of the
-  // DOM.
-  const replay = () => {
-    const tl = tlRef.current;
-    if (!tl) return;
-    try {
-      sessionStorage.removeItem(DONE_KEY);
-    } catch {
-      /* private browsing / storage disabled — harmless to skip */
-    }
-    isAnimatingRef.current = false;
-    currentStepRef.current = 0;
-    accumRef.current = 0;
-    tl.pause(0);
-    setFinished(false);
-    const st = stRef.current;
-    if (st) {
-      st.scroll(st.start);
-      lastScrollRef.current = st.scroll();
-      ScrollTrigger.refresh();
-    }
-  };
-
   // The whole pin + capture engine is delegated to GSAP's ScrollTrigger.
   // `normalizeScroll(true)` used to run unconditionally, meant to iron out
   // mobile touch/momentum inconsistencies — but on some mobile browsers it
@@ -832,7 +758,6 @@ function ZUIHubStory() {
   // small scroll is just the "play" signal, and the clip's own duration
   // paces the story.
   useEffect(() => {
-    if (alreadyDone) return;
     if (window.matchMedia('(pointer: fine)').matches) {
       ScrollTrigger.normalizeScroll(true);
     }
@@ -888,7 +813,7 @@ function ZUIHubStory() {
     stRef.current = st;
 
     return () => st.kill();
-  }, [alreadyDone]);
+  }, []);
 
   return (
     // ScrollTrigger's `pin: true` wraps this in its own spacer and pins it
@@ -899,7 +824,7 @@ function ZUIHubStory() {
     // and corrupts the layout (this broke the whole page once already).
     <section
       ref={rootRef}
-      className="relative h-[100svh] overflow-hidden"
+      className="relative h-[100svh] overflow-hidden bg-white"
       aria-label="Les 6 univers de Moledi Event"
     >
 
@@ -939,9 +864,12 @@ function ZUIHubStory() {
         />
       ))}
 
-      {/* Finale iris — a plain white disc that wipes over the stacked deck
-          (closing) then back down (opening) onto the empty resting scene,
-          like a classic game-transition cut. */}
+      {/* Finale iris — a white disc (the whole section is white now, no
+          dark scene to match) that wipes over the stacked deck (closing)
+          then back down (opening) onto the empty resting scene, like a
+          classic game-transition cut -- reads as a clean flash-to-white
+          rather than a jarring colour change, since the canvas around it
+          is already white. */}
       <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center overflow-hidden">
         <div ref={irisRef} className="w-[300vmax] h-[300vmax] rounded-full bg-white" />
       </div>
@@ -959,36 +887,34 @@ function ZUIHubStory() {
       >
         <p className="text-ink-900 font-black text-4xl sm:text-7xl lg:text-8xl leading-[1.05] text-center max-w-4xl">
           <span className="block">{FINALE_SLOGAN_LINE_1}</span>
-          <span className="block bg-gradient-to-r from-primary to-primary-300 bg-clip-text text-transparent">
+          <span className="block bg-gradient-to-r from-primary to-primary-600 bg-clip-text text-transparent">
             {FINALE_SLOGAN_LINE_2}
           </span>
         </p>
       </div>
 
-      {/* Sober "skip" while the story is still running. */}
-      {!finished && (
+      {/* "Passer" pendant que l'histoire tourne encore ; une fois finie,
+          remplacé par "Relancer l'animation" qui redémarre l'histoire depuis
+          le tout début en forçant un remount complet côté parent (voir
+          HeroStorySwap dans Home1.jsx) -- le moyen le plus fiable de rejouer
+          une timeline GSAP déjà arrivée à son terme. */}
+      {!finished ? (
         <button
           type="button"
           onClick={skipToEnd}
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[60] text-xs font-semibold text-ink-700 bg-white/80 backdrop-blur-sm border border-ink-200 rounded-lg px-4 py-2 hover:text-ink-900 hover:border-ink-300 transition-colors"
+          className="absolute bottom-8 sm:bottom-10 left-1/2 -translate-x-1/2 z-[60] text-sm sm:text-base font-bold text-white bg-ink-900/90 backdrop-blur-sm border-2 border-white/40 rounded-full px-7 sm:px-9 py-3 sm:py-3.5 shadow-2xl hover:bg-primary hover:border-primary transition-colors"
         >
-          Passer
+          Passer l'animation →
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={handleReplay}
+          className="absolute bottom-8 sm:bottom-10 left-1/2 -translate-x-1/2 z-[60] text-sm sm:text-base font-bold text-white bg-ink-900/90 backdrop-blur-sm border-2 border-white/40 rounded-full px-7 sm:px-9 py-3 sm:py-3.5 shadow-2xl hover:bg-primary hover:border-primary transition-colors"
+        >
+          ↻ Relancer l'animation
         </button>
       )}
-
-      {/* "Relancer l'animation" — always in the DOM but invisible/inert
-          (opacity 0, pointer-events none) until the GSAP timeline reveals
-          it right as the slogan shrinks to the left, in sync. On mobile it
-          simply sits centred at the bottom instead of pairing with the
-          shrunk text on the right — no room for a real split there. */}
-      <button
-        ref={replayButtonRef}
-        type="button"
-        onClick={replay}
-        className="absolute z-[60] left-1/2 -translate-x-1/2 bottom-10 sm:bottom-auto sm:left-auto sm:translate-x-0 sm:right-10 lg:right-20 sm:top-1/2 sm:-translate-y-1/2 text-xs sm:text-sm font-semibold text-white bg-primary shadow-lg shadow-primary/30 rounded-full px-5 py-2.5 hover:bg-primary-600 transition-colors"
-      >
-        ↻ Relancer l'animation
-      </button>
     </section>
   );
 }
@@ -1048,10 +974,10 @@ function Block({ univ, pos, imgRef, descRef, ringRef, blockRef, titleRef }) {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-ink-900/90 via-ink-900/25 to-transparent" />
 
-        <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
+        <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8 text-center">
           <h3
             ref={titleRef}
-            className="font-heading text-white text-2xl sm:text-3xl leading-tight normal-case"
+            className="font-heading text-white font-black text-3xl sm:text-4xl leading-[1.1] normal-case"
             style={{ willChange: 'transform' }}
           >
             {univ.label}
@@ -1211,6 +1137,14 @@ function ImmersiveOverlay({ univ, overlayRef, index }) {
           </div>
 
           <Layout univ={univ} steps={steps} tags={tags} trust={trust} color={color} />
+
+          {univ.cta && (
+            <div className="mt-5 sm:mt-6 flex justify-center">
+              <a href="/inscription" className="btn btn-primary !px-6 !py-2.5 !text-sm">
+                {univ.cta} <span aria-hidden>→</span>
+              </a>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1221,7 +1155,7 @@ function ImmersiveOverlay({ univ, overlayRef, index }) {
 function TimelineDetail({ univ, steps, tags, trust, color }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4">
-      <Thumb src={univ.nested.how.image} className="hidden lg:block lg:col-span-3 min-h-[16rem]" />
+      <Thumb src={univ.nested.how.image} className="hidden sm:block sm:col-span-3 min-h-[16rem]" />
       <Panel className="lg:col-span-5">
         <PanelHeading icon={IconSteps} color={color}>Comment ça marche</PanelHeading>
         <StepsWidget steps={steps} color={color} layout="column" />
@@ -1246,7 +1180,7 @@ function TicketDetail({ univ, steps, tags, trust, color }) {
   return (
     <div className="rounded-3xl bg-white border border-ink-200 shadow-[0_18px_50px_-20px_rgba(11,19,36,0.3)] overflow-hidden">
       <div className="grid grid-cols-1 lg:grid-cols-4">
-        <Thumb src={univ.nested.how.image} className="hidden lg:block rounded-none min-h-full" />
+        <Thumb src={univ.nested.how.image} className="hidden sm:block rounded-none min-h-full" />
         <div className="lg:col-span-3 p-4 sm:p-6">
           <PanelHeading icon={IconSteps} color={color}>Comment ça marche</PanelHeading>
           <div className="flex flex-col sm:flex-row items-start sm:items-stretch gap-4 sm:gap-0">
@@ -1298,7 +1232,7 @@ function RadialDetail({ univ, steps, tags, trust, color }) {
         <StepsWidget steps={steps} color={color} layout="row" />
       </Panel>
       <div className="flex flex-col gap-3 sm:gap-4">
-        <Thumb src={univ.nested.who.image} className="hidden lg:block h-28" />
+        <Thumb src={univ.nested.who.image} className="hidden sm:block h-28" />
         <Panel>
           <PanelHeading icon={IconPeople} color={color}>Pour qui</PanelHeading>
           <TagsWidget tags={tags} />
@@ -1357,7 +1291,7 @@ function SplitDetail({ univ, steps, tags, trust, color }) {
           <PanelHeading icon={IconSteps} color={color}>Comment ça marche</PanelHeading>
           <StepsWidget steps={steps} color={color} layout="column" />
         </div>
-        <Thumb src={univ.nested.how.image} className="hidden lg:block rounded-none" />
+        <Thumb src={univ.nested.how.image} className="hidden sm:block rounded-none" />
         <div className="lg:col-span-2 p-4 sm:p-6 flex flex-col gap-4" style={{ background: `${color}0a` }}>
           <div>
             <PanelHeading icon={IconPeople} color={color}>Pour qui</PanelHeading>
@@ -1667,7 +1601,7 @@ export function ShowcaseMarquee() {
       <div className="relative" style={{ perspective: '1200px' }}>
         <div className="pointer-events-none absolute inset-y-0 left-0 w-16 sm:w-32 bg-gradient-to-r from-white to-transparent z-10" />
         <div className="pointer-events-none absolute inset-y-0 right-0 w-16 sm:w-32 bg-gradient-to-l from-white to-transparent z-10" />
-        <div className="flex gap-4 sm:gap-6 w-max animate-marquee-testimonials" style={{ transformStyle: 'preserve-3d' }}>
+        <div className="flex gap-4 sm:gap-6 w-max animate-marquee-testimonials" style={{ transformStyle: 'preserve-3d', willChange: 'transform', backfaceVisibility: 'hidden' }}>
           {track.map((c, i) => (
             <ShowcaseCard key={i} {...c} index={i} total={SHOWCASE_CARDS.length} />
           ))}
@@ -1780,62 +1714,58 @@ function Step({ step, index }) {
 
 /**
  * Coverage strip — same live-data pattern as the Tarifs page: countries
- * from `/api/countries`, payment operators from `/api/payment-methods`,
- * rendered as real brand logos (not text labels) with an initials fallback
- * if a logo fails to load.
+ * from `/api/countries`, rendered as big flag + country name (see
+ * CountryChip). Payment-method logos are shown on the Tarifs page only.
  */
 
+// Gros drapeau au-dessus, nom du pays en dessous -- même présentation que
+// la page Tarifs (CountryPill), demandée explicitement pour remplacer
+// l'ancien chip "petit drapeau + nom à côté" jugé peu lisible.
 function CountryChip({ c }) {
   return (
-    <div className="shrink-0 flex items-center gap-2.5 px-1">
+    <div className="flex flex-col items-center gap-2 shrink-0 px-6">
       <img
-        src={flag(c.country_code.toLowerCase(), 80)}
-        alt={c.country_name}
-        width="28"
-        height="20"
-        className="w-7 h-5 object-cover rounded shadow-sm"
+        src={flag(c.country_code.toLowerCase(), 160)}
+        alt=""
+        className="w-20 h-14 object-cover rounded-lg shadow-sm"
         loading="lazy"
       />
-      <span className="text-sm font-semibold text-ink-900 whitespace-nowrap">
+      <span className="text-sm font-semibold whitespace-nowrap text-ink-900">
         {c.country_name}
       </span>
     </div>
   );
 }
 
-function PaymentLogoChip({ m }) {
-  const [failed, setFailed] = useState(!m.logo_url);
+// En dessous de ce nombre d'éléments actifs, un carrousel en boucle
+// infinie ne remplit jamais l'écran et rend mal (piste collée à gauche) --
+// on affiche alors une rangée statique centrée à la place. Au-dessus, le
+// défilement automatique prend le relais. Même seuil que les carrousels de
+// candidats/partenaires de la section Scrutin & Vote.
+export const MARQUEE_THRESHOLD = 7;
 
-  if (failed) {
-    return (
-      <span
-        className="shrink-0 w-14 h-14 rounded-xl flex items-center justify-center font-heading text-xs normal-case tracking-wide text-center leading-tight bg-ink-100 text-ink-900"
-        title={m.operator}
-      >
-        {String(m.operator || '')
-          .split(' ')
-          .map((w) => w[0])
-          .join('')
-          .slice(0, 3)}
-      </span>
-    );
-  }
-
-  return (
-    <img
-      src={m.logo_url}
-      alt={m.operator}
-      onError={() => setFailed(true)}
-      className="shrink-0 w-14 h-14 rounded-xl object-contain bg-white border border-ink-200 p-2"
-      loading="lazy"
-    />
-  );
+function useIsMobileViewport() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    setIsMobile(mq.matches);
+    const handler = (e) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isMobile;
 }
 
 export function Coverage() {
   const { countries } = useCountries();
-  const { methods } = usePaymentMethods();
   const active = countries.filter((c) => c.active);
+  const isMobile = useIsMobileViewport();
+  // Sur mobile, le défilement continu reste actif quel que soit le nombre
+  // de pays (demande explicite : "peu importe le nombre de pays, ils
+  // doivent simplement défiler, encore et encore") -- seul le PC bascule
+  // sur une rangée statique centrée en dessous du seuil.
+  const useMarquee = active.length >= MARQUEE_THRESHOLD || (isMobile && active.length > 0);
+  const marqueeTrack = active.length < 3 ? [...active, ...active, ...active] : active;
 
   return (
     <section id="couverture" className="relative py-20 sm:py-24 overflow-hidden">
@@ -1849,28 +1779,32 @@ export function Coverage() {
         <p className="text-primary font-semibold tracking-[0.2em] uppercase text-[10px] mb-2">
           Couverture géographique
         </p>
-        <h2 className="text-3xl sm:text-5xl text-ink-900">Toute l'Afrique francophone</h2>
+        <h2 className="text-3xl sm:text-5xl text-ink-900">Toute l'Afrique</h2>
         <p className="text-ink-700 normal-case mt-4 max-w-xl mx-auto">
           Des paiements locaux, via les opérateurs que vos participants
           utilisent déjà au quotidien.
         </p>
       </motion.div>
 
-      {active.length > 0 && (
-        <div className="relative mb-8">
-          <div className="flex gap-8 w-max animate-marquee">
-            {[...active, ...active].map((c, i) => (
-              <CountryChip key={`c-${i}`} c={c} />
-            ))}
-          </div>
+      {/* En dessous du seuil, le nombre de pays actifs ne remplit jamais la
+          largeur de l'écran -- un défilement infini sur une piste plus
+          courte que le viewport se retrouvait collé à gauche et sautait de
+          façon visible. On centre alors une simple rangée statique ; le
+          défilement continu ne se déclenche qu'une fois assez de pays pour
+          justifier un vrai carrousel. */}
+      {active.length > 0 && !useMarquee && (
+        <div className="flex flex-wrap justify-center gap-8 max-w-4xl mx-auto px-4">
+          {active.map((c) => (
+            <CountryChip key={c.country_code} c={c} />
+          ))}
         </div>
       )}
 
-      {methods.length > 0 && (
-        <div className="relative">
-          <div className="flex gap-4 w-max animate-marquee-slow">
-            {[...methods, ...methods].map((m, i) => (
-              <PaymentLogoChip key={`m-${i}`} m={m} />
+      {useMarquee && (
+        <div className="relative overflow-hidden">
+          <div className="flex gap-8 w-max mx-auto animate-marquee">
+            {[...marqueeTrack, ...marqueeTrack].map((c, i) => (
+              <CountryChip key={`c-${i}`} c={c} />
             ))}
           </div>
         </div>
@@ -1939,86 +1873,7 @@ export function PricingTeaser() {
 }
 
 
-// Desktop-only custom cursor: a small trail of star sparkles follows the
-// pointer, kept subtle (brand orange/blue, low opacity, short-lived) rather
-// than a loud/childish effect. Never active on touch devices.
-function useIsFinePointer() {
-  const [fine, setFine] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(pointer: fine)');
-    setFine(mq.matches);
-    const handler = (e) => setFine(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
-  return fine;
-}
-
-export function SparkleCursor() {
-  const fine = useIsFinePointer();
-  const [sparkles, setSparkles] = useState([]);
-  const idRef = useRef(0);
-  const lastRef = useRef(0);
-
-  // The pointer itself stays the normal, standard system cursor — only a
-  // trail of sparkles rides along with it while scrolling/navigating.
-  useEffect(() => {
-    if (!fine) return;
-    const onMove = (e) => {
-      const now = performance.now();
-      if (now - lastRef.current < 45) return;
-      lastRef.current = now;
-      const id = idRef.current++;
-      setSparkles((s) => [
-        ...s.slice(-18),
-        { id, x: e.clientX, y: e.clientY, blue: Math.random() > 0.5 },
-      ]);
-    };
-    window.addEventListener('mousemove', onMove);
-    return () => window.removeEventListener('mousemove', onMove);
-  }, [fine]);
-
-  if (!fine) return null;
-
-  return (
-    <div className="pointer-events-none fixed inset-0 z-[999] overflow-hidden">
-      <AnimatePresence>
-        {sparkles.map((s) => (
-          <motion.span
-            key={s.id}
-            initial={{ opacity: 0.85, scale: 0.4 }}
-            animate={{ opacity: 0, scale: 1, y: -16 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.65, ease: 'easeOut' }}
-            onAnimationComplete={() => setSparkles((cur) => cur.filter((c) => c.id !== s.id))}
-            className="absolute -translate-x-1/2 -translate-y-1/2 text-xs select-none"
-            style={{ left: s.x, top: s.y, color: s.blue ? '#5F8EFF' : '#FF8533' }}
-          >
-            ✦
-          </motion.span>
-        ))}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function Home2() {
-  return (
-    <>
-      <SparkleCursor />
-      <SiteHeader activeHref="/" />
-      <main>
-        <Hero />
-        <ZUIHubStory />
-        <FeaturedMarquee />
-        <ShowcaseMarquee />
-        <HowTimeline />
-        <Coverage />
-        <PricingTeaser />
-      </main>
-      <Footer />
-    </>
-  );
-}
-
-export default Home2;
+// Pas de export default : cette page n'existe plus en tant que route
+// indépendante (l'ancienne /v2 est supprimée, fusionnée dans Home1.jsx).
+// Ce module ne sert plus qu'à exposer les sections partagées (marquee,
+// timeline, couverture, tarifs, ZUIHubStory) importées par Home1.jsx.

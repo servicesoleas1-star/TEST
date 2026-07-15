@@ -658,7 +658,7 @@ export default function OrganizerSettingsPage() {
   return (
     <div className="min-h-screen bg-white">
       <header className="sticky top-0 z-10 px-4 sm:px-8 py-4 flex items-center gap-3 bg-white border-b border-ink-200">
-        <Link to="/organisateur/tableau-de-bord" className="text-secondary">
+        <Link to="/dashboard" className="text-secondary">
           <ArrowLeft size={20} />
         </Link>
         <h1 className="text-lg sm:text-xl font-bold text-ink-900">

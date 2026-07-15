@@ -2,9 +2,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { Smartphone, CreditCard, Wallet } from 'lucide-react';
 import SiteHeader from '../components/SiteHeader';
 import Footer from '../components/Footer';
 import { flag, illustration } from '../config/media';
+import { getPaymentMethods } from '../config/paymentMethodsConfig';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -12,14 +14,16 @@ gsap.registerPlugin(ScrollTrigger);
 // Mirrors UML DC-08 `CommissionConfig`. Public pricing page = anonymous
 // visitors, so it always reads this global table (no UserCommissionConfig
 // override here, that only applies to logged-in organizers).
+// Barème unifié : 10% pour TOUS les types de campagne, sans exception
+// (décision produit — plus de taux différencié 7%/10% par type).
 const commissionConfigs = [
   { config_id: 'cc-vote', type: 'VOTE', rate: 10, active: true },
   { config_id: 'cc-contest', type: 'CONTEST', rate: 10, active: true },
-  { config_id: 'cc-ticket', type: 'TICKET', rate: 7, active: true },
-  { config_id: 'cc-donation', type: 'DONATION', rate: 7, active: true },
-  { config_id: 'cc-cf', type: 'CF', rate: 7, active: true },
-  { config_id: 'cc-lottery', type: 'LOTTERY', rate: 7, active: true },
-  { config_id: 'cc-sponsorship', type: 'SPONSORSHIP', rate: 7, active: true },
+  { config_id: 'cc-ticket', type: 'TICKET', rate: 10, active: true },
+  { config_id: 'cc-donation', type: 'DONATION', rate: 10, active: true },
+  { config_id: 'cc-cf', type: 'CF', rate: 10, active: true },
+  { config_id: 'cc-lottery', type: 'LOTTERY', rate: 10, active: true },
+  { config_id: 'cc-sponsorship', type: 'SPONSORSHIP', rate: 10, active: true },
 ];
 
 const campaignTypes = [
@@ -89,32 +93,14 @@ function useCountries() {
   return { countries, loading };
 }
 
-// Preloads payment operators from `/api/payment-methods` (Aggregator table).
-// Each row is expected to carry a `logo_url`; the UI falls back to initials
-// only if that logo fails to load.
+// Liste préparée à l'avance (config/paymentMethodsConfig.js), avec les vrais
+// logos déjà résolus -- pas d'aller-retour réseau nécessaire pour l'avoir,
+// contrairement à l'ancien /api/payment-methods (qui ne reflétait que les
+// agrégateurs déjà configurés en base, souvent incomplet en démo). Gardée
+// comme un hook pour ne rien changer à l'appelant ci-dessous.
 function usePaymentMethods() {
-  const [methods, setMethods] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/api/payment-methods')
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled) setMethods(data.ok ? data.methods : []);
-      })
-      .catch(() => {
-        if (!cancelled) setMethods([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { methods, loading };
+  const [methods] = useState(() => getPaymentMethods());
+  return { methods, loading: false };
 }
 
 /**
@@ -304,15 +290,15 @@ function RateCards() {
             <div className="w-full max-w-5xl flex flex-row items-center gap-4 sm:gap-10 lg:gap-16 rounded-2xl sm:rounded-3xl border border-ink-200 bg-white p-5 sm:p-10 lg:p-14 min-h-[260px] sm:min-h-[340px] lg:min-h-[400px] shadow-[0_35px_80px_-30px_rgba(11,19,36,0.35)]">
               <div className="flex-1 min-w-0 order-1">
                 <span
-                  className={`w-2.5 h-2.5 rounded-full inline-block mb-3 sm:mb-5 ${
+                  className={`w-2.5 h-2.5 rounded-full inline-block mb-2 sm:mb-3 ${
                     c.tone === 'primary' ? 'bg-primary' : c.tone === 'secondary' ? 'bg-secondary' : 'bg-ink-900'
                   }`}
                 />
-                <p className="text-4xl sm:text-7xl lg:text-8xl font-heading normal-case text-ink-900 mb-2 sm:mb-4">
+                <p className="text-4xl sm:text-7xl lg:text-8xl font-heading normal-case text-ink-900 mb-1 sm:mb-2">
                   {rate != null ? `${rate}%` : '—'}
                 </p>
-                <h3 className="text-base sm:text-2xl lg:text-3xl font-semibold text-ink-900 mb-2 sm:mb-3">{c.title}</h3>
-                <p className="text-xs sm:text-base text-ink-700 normal-case leading-relaxed max-w-md">{c.desc}</p>
+                <h3 className="text-base sm:text-2xl lg:text-3xl font-semibold text-ink-900 mb-1.5 sm:mb-2">{c.title}</h3>
+                <p className="text-xs sm:text-base text-ink-700 normal-case leading-snug max-w-md">{c.desc}</p>
               </div>
               <img
                 src={c.image}
@@ -490,14 +476,30 @@ function FeeCalculator() {
 
 
 function CountryPill({ code, name, active }) {
+  // Repli si le drapeau (flagcdn.com, externe) échoue à charger : un badge
+  // avec le code ISO plutôt qu'une icône d'image cassée invisible dans le
+  // défilement -- sans ça, un pays dont le drapeau ne charge pas "disparaît"
+  // visuellement de la piste alors qu'il y est bien listé.
+  const [imgFailed, setImgFailed] = useState(false);
   return (
     <div className="flex flex-col items-center gap-2 shrink-0 px-6">
-      <img
-        src={flag(code.toLowerCase(), 160)}
-        alt=""
-        className={`w-20 h-14 object-cover rounded-lg shadow-sm ${!active ? 'grayscale opacity-60' : ''}`}
-        loading="lazy"
-      />
+      {imgFailed ? (
+        <div
+          className={`w-20 h-14 rounded-lg shadow-sm flex items-center justify-center text-xs font-bold ${
+            active ? 'bg-primary/10 text-primary' : 'bg-ink-100 text-ink-700/70'
+          }`}
+        >
+          {code}
+        </div>
+      ) : (
+        <img
+          src={flag(code.toLowerCase(), 160)}
+          alt=""
+          onError={() => setImgFailed(true)}
+          className={`w-20 h-14 object-cover rounded-lg shadow-sm ${!active ? 'grayscale opacity-60' : ''}`}
+          loading="lazy"
+        />
+      )}
       <span className={`text-sm font-semibold whitespace-nowrap ${active ? 'text-ink-900' : 'text-ink-700/70'}`}>
         {name}
       </span>
@@ -516,10 +518,18 @@ function CountryPill({ code, name, active }) {
  */
 function CountryCoverage() {
   const { countries } = useCountries();
-  const activeCodes = new Set(
-    countries.filter((c) => c.active).map((c) => String(c.country_code).toUpperCase())
-  );
+  const activeCountries = countries.filter((c) => c.active);
+  const activeCodes = new Set(activeCountries.map((c) => String(c.country_code).toUpperCase()));
   const noneConfigured = activeCodes.size === 0;
+
+  // Un seul pays configuré : pas de défilement, juste un gros bloc statique
+  // -- faire tourner un carrousel avec une seule vignette qui se répète
+  // n'a pas de sens et rend mal. Plusieurs pays (ou aucun, avec la liste de
+  // repli "Bientôt") : défilement continu, en boucle infinie.
+  const singleActiveCountry =
+    activeCountries.length === 1
+      ? africanCountries.find((c) => c.code === activeCodes.values().next().value)
+      : null;
 
   const track = [...africanCountries, ...africanCountries];
 
@@ -545,38 +555,53 @@ function CountryCoverage() {
         </motion.div>
       </div>
 
-      <div className="relative">
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-16 sm:w-32 bg-gradient-to-r from-white to-transparent z-10" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-16 sm:w-32 bg-gradient-to-l from-white to-transparent z-10" />
-        <motion.div
-          className="flex items-center py-2"
-          animate={{ x: ['0%', '-50%'] }}
-          transition={{ duration: 5, repeat: Infinity, ease: 'linear' }}
-        >
-          {track.map((c, i) => (
-            <CountryPill key={`${c.code}-${i}`} code={c.code} name={c.name} active={!noneConfigured && activeCodes.has(c.code)} />
-          ))}
-        </motion.div>
-      </div>
+      {singleActiveCountry ? (
+        <div className="flex justify-center">
+          <CountryPill code={singleActiveCountry.code} name={singleActiveCountry.name} active />
+        </div>
+      ) : (
+        <div className="relative">
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-16 sm:w-32 bg-gradient-to-r from-white to-transparent z-10" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-16 sm:w-32 bg-gradient-to-l from-white to-transparent z-10" />
+          {/* Vitesse distincte de la page d'accueil (.animate-marquee) : cette
+              liste couvre les 54 pays d'Afrique (108 puces une fois doublée
+              pour la boucle), contre 3-6 sur l'accueil -- à durée identique,
+              cette piste bien plus large défilait à toute vitesse ("100 à
+              l'heure"). .animate-marquee-slow calibre un rythme de lecture
+              comparable sur une piste beaucoup plus longue. */}
+          <div className="flex items-center py-2 w-max animate-marquee-slow">
+            {track.map((c, i) => (
+              <CountryPill key={`${c.code}-${i}`} code={c.code} name={c.name} active={!noneConfigured && activeCodes.has(c.code)} />
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
 
 
+// Icône par TYPE de moyen de paiement (pas par opérateur) : tant qu'aucune
+// vraie image de logo de marque n'est fournie (logo_url reste null côté
+// backend -- voir moledi-backend/src/store/paymentMethodsStore.js), afficher
+// une icône reconnaissable est plus honnête et plus lisible que des
+// initiales de texte, sans avoir à deviner/héberger un logo de marque non
+// vérifié. Dès qu'un vrai fichier logo par opérateur est fourni (déposé
+// dans /public), il prend le dessus automatiquement via logo_url.
+const METHOD_ICON = { MOBILE_MONEY: Smartphone, CARD: CreditCard, PAYPAL: Wallet };
+
 function OperatorLogo({ m }) {
   const [failed, setFailed] = useState(!m.logo_url);
 
   if (failed) {
+    const Icon = METHOD_ICON[m.method] || Wallet;
     return (
       <span
-        className="w-11 h-11 shrink-0 rounded-lg flex items-center justify-center font-heading text-[11px] normal-case tracking-wide text-center leading-tight"
+        className="w-11 h-11 shrink-0 rounded-lg flex items-center justify-center"
         style={{ backgroundColor: m.bg || '#F2F2F2', color: m.fg || '#0B1324' }}
+        title={m.operator}
       >
-        {String(m.operator || '')
-          .split(' ')
-          .map((w) => w[0])
-          .join('')
-          .slice(0, 3)}
+        <Icon size={20} strokeWidth={2.25} aria-hidden="true" />
       </span>
     );
   }
@@ -610,8 +635,16 @@ function MethodCard({ m }) {
   );
 }
 
+// Vitesse calée sur le défilement des pays (~0.85s par vignette avant
+// duplication) plutôt qu'une durée fixe -- avec une durée fixe, une piste
+// courte (peu d'opérateurs) semblait ramper alors qu'une piste longue
+// filait, l'utilisateur signalait justement "trop lent" pour les opérateurs
+// comparé aux pays.
+const SECONDS_PER_CARD = 2.2;
+
 function MethodMarquee({ items, duration }) {
   const track = [...items, ...items];
+  const effectiveDuration = duration ?? Math.max(8, items.length * SECONDS_PER_CARD);
   return (
     <div className="relative overflow-hidden mb-8 last:mb-0">
       <div className="pointer-events-none absolute inset-y-0 left-0 w-12 sm:w-24 bg-gradient-to-r from-ink-100/50 to-transparent z-10" />
@@ -619,7 +652,7 @@ function MethodMarquee({ items, duration }) {
       <motion.div
         className="flex gap-3"
         animate={{ x: ['0%', '-50%'] }}
-        transition={{ duration, repeat: Infinity, ease: 'linear' }}
+        transition={{ duration: effectiveDuration, repeat: Infinity, ease: 'linear' }}
       >
         {track.map((m, i) => (
           <MethodCard key={`${m.operator}-${i}`} m={m} />
@@ -664,14 +697,14 @@ function PaymentMethodsGrid() {
           </p>
         )}
 
-        {live.length > 0 && <MethodMarquee items={live} duration={22} />}
+        {live.length > 0 && <MethodMarquee items={live} />}
 
         {upcoming.length > 0 && (
           <>
             <p className="text-center text-xs font-semibold uppercase tracking-wide text-ink-700 mb-4">
               Prochainement
             </p>
-            <MethodMarquee items={upcoming} duration={26} />
+            <MethodMarquee items={upcoming} />
           </>
         )}
       </div>
@@ -793,8 +826,9 @@ function Tarifs() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
       <SiteHeader activeHref="/tarifs" />
       <main className="pt-16 sm:pt-20">
-        {/* Hero */}
-        <section className="relative py-16 sm:py-24 text-center">
+        {/* Hero -- encore rapproché de l'en-tête et des cards juste en
+            dessous, comme demandé (moins d'espace vide de chaque côté). */}
+        <section className="relative pt-4 sm:pt-6 pb-2 sm:pb-3 text-center">
           <motion.div
             initial={{ opacity: 0, y: 28 }}
             animate={{ opacity: 1, y: 0 }}

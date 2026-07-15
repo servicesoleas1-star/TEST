@@ -1,5 +1,8 @@
 import { pool } from "../db/pool.js";
 import bcryptjs from "bcryptjs";
+import ExcelJS from "exceljs";
+import PDFDocument from "pdfkit";
+import { createPollCampaign } from "../store/campaignCreationStore.js";
 import {
   findUserByEmail,
   getBalance,
@@ -12,12 +15,19 @@ import {
   getPaginatedCampaigns,
   duplicateCampaign,
   getPaginatedActivity,
+  getPaginatedOwnVotes,
   getLeaderboard,
   getPaginatedNotifications,
   markNotificationsRead,
+  markAllNotificationsRead,
   getPaginatedLoginLogs,
   hasActivePayoutBlock,
   createPayoutRequest,
+  getPaginatedTransactions,
+  getPaginatedPayouts,
+  getFullProfile,
+  updateProfile,
+  updatePayoutPhone,
   generateSignedExportToken,
   validateSignedExportToken,
   getTransactionsForExport,
@@ -43,6 +53,13 @@ async function resolveUser(req, res) {
     return null;
   }
   return user;
+}
+
+async function resolveDefaultAggregatorId() {
+  const { rows } = await pool.query(
+    `SELECT aggregator_id FROM aggregators WHERE active = TRUE ORDER BY name ASC LIMIT 1`
+  );
+  return rows[0]?.aggregator_id || null;
 }
 
 async function verifyPassword(password, hash) {
@@ -106,6 +123,28 @@ export async function getCharts(req, res) {
 }
 
 // ---------------------------------------------------------------------------
+// POST /api/dashboard/campaigns
+// Créer une campagne Scrutin & Vote (seul type disponible au MVP).
+// Body: { email, title, description, coverPhotoUrl, category,
+//         displayOrganizerName, voteType, pricePerVote, votePacks,
+//         maxVotesPerVisitor, openAt, closeAt, timezone, resultsVisibility,
+//         candidates: [...], refundPolicy: { refundable, delayHours, percentage } }
+// Statut initial PENDING_VALIDATION -- attend une validation admin comme
+// toute nouvelle campagne (voir Spec Fonctionnelle section D).
+// ---------------------------------------------------------------------------
+export async function createCampaignHandler(req, res) {
+  const user = await resolveUser(req, res);
+  if (!user) return;
+
+  try {
+    const poll = await createPollCampaign(user.user_id, req.body);
+    return res.status(201).json({ success: true, campaign: poll });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/dashboard/campaigns?email=&page=&pageSize=
 // Lister campagnes avec pagination
 // ---------------------------------------------------------------------------
@@ -163,6 +202,25 @@ export async function listActivity(req, res) {
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/dashboard/my-votes?email=&page=&pageSize=
+// "Mon activité > Mes votes" (dashboard V2) -- votes propres de
+// l'organisateur en tant que participant, pas ceux reçus sur ses campagnes.
+// ---------------------------------------------------------------------------
+export async function listMyVotes(req, res) {
+  const user = await resolveUser(req, res);
+  if (!user) return;
+
+  const { page, pageSize } = parsePagination(req);
+
+  try {
+    const result = await getPaginatedOwnVotes(user.user_id, page, pageSize);
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/dashboard/leaderboard?email=&campaignId=
 // Classement candidats pour une campagne
 // ---------------------------------------------------------------------------
@@ -209,6 +267,22 @@ export async function listNotifications(req, res) {
 }
 
 // ---------------------------------------------------------------------------
+// POST /api/dashboard/notifications/mark-all-read
+// Bouton "Tout marquer comme lu" (dashboard V2 > Notifications)
+// ---------------------------------------------------------------------------
+export async function markAllNotificationsReadHandler(req, res) {
+  const user = await resolveUser(req, res);
+  if (!user) return;
+
+  try {
+    await markAllNotificationsRead(user.user_id);
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/dashboard/login-logs?email=&page=&pageSize=
 // Journal de connexion paginé
 // ---------------------------------------------------------------------------
@@ -227,6 +301,42 @@ export async function listLoginLogs(req, res) {
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/dashboard/transactions?email=&page=&pageSize=
+// Historique des revenus paginé (dashboard V2 > Finances > Historique)
+// ---------------------------------------------------------------------------
+export async function listTransactions(req, res) {
+  const user = await resolveUser(req, res);
+  if (!user) return;
+
+  const { page, pageSize } = parsePagination(req);
+
+  try {
+    const result = await getPaginatedTransactions(user.user_id, page, pageSize);
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/dashboard/payouts?email=&page=&pageSize=
+// Reversements paginés (dashboard V2 > Finances > Reversements)
+// ---------------------------------------------------------------------------
+export async function listPayouts(req, res) {
+  const user = await resolveUser(req, res);
+  if (!user) return;
+
+  const { page, pageSize } = parsePagination(req);
+
+  try {
+    const result = await getPaginatedPayouts(user.user_id, page, pageSize);
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // POST /api/dashboard/payout-requests
 // Demander un retrait
 // ---------------------------------------------------------------------------
@@ -234,13 +344,24 @@ export async function requestPayout(req, res) {
   const user = await resolveUser(req, res);
   if (!user) return;
 
-  const { amount, phone, country } = req.body;
+  const { amount } = req.body;
 
   if (!amount || amount <= 0) {
     return res.status(400).json({ error: "Montant invalide." });
   }
 
   try {
+    // Le numéro de destination n'est jamais saisi ici -- il est pré-configuré
+    // dans le profil (voir updatePayoutPhoneHandler / Mon profil > Numéro
+    // Mobile Money) et seulement RÉUTILISÉ, jamais modifiable depuis ce
+    // formulaire (voir Spec Fonctionnelle, section Finances > Demande de retrait).
+    const profile = await getFullProfile(user.user_id);
+    if (!profile?.payout_phone) {
+      return res.status(400).json({
+        error: "Aucun numéro Mobile Money configuré. Configurez-le dans Mon profil avant de demander un retrait.",
+      });
+    }
+
     // Vérifier blocage actif
     const block = await hasActivePayoutBlock(user.user_id);
     if (block) {
@@ -253,10 +374,17 @@ export async function requestPayout(req, res) {
       return res.status(400).json({ error: "Solde insuffisant." });
     }
 
-    // TODO: intégrer PSP pour récupérer aggregatorId
-    const aggregatorId = null; // Placeholder
+    // aggregator_id est NOT NULL en base (payout_requests) -- en l'absence
+    // d'une vraie logique de sélection de PSP par pays/opérateur (à
+    // brancher plus tard), on résout le premier agrégateur actif comme
+    // valeur par défaut plutôt que d'envoyer null, ce qui violait la
+    // contrainte et faisait toujours échouer la demande de retrait.
+    const aggregatorId = await resolveDefaultAggregatorId();
+    if (!aggregatorId) {
+      return res.status(503).json({ error: "Aucun prestataire de paiement disponible pour le moment." });
+    }
 
-    const result = await createPayoutRequest(user.user_id, amount, phone, aggregatorId);
+    const result = await createPayoutRequest(user.user_id, amount, profile.payout_phone, aggregatorId);
     return res.status(201).json(result);
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -267,14 +395,18 @@ export async function requestPayout(req, res) {
 // GET /api/dashboard/export/financial
 // Générer URL signée pour export financier (≤ 1h)
 // ---------------------------------------------------------------------------
+const EXPORT_FORMATS = new Set(["csv", "xlsx", "pdf"]);
+
 export async function requestFinancialExport(req, res) {
   const user = await resolveUser(req, res);
   if (!user) return;
 
+  const format = EXPORT_FORMATS.has(req.query.format) ? req.query.format : "csv";
+
   try {
     const { token, expiresAt } = generateSignedExportToken(user.user_id);
     return res.status(200).json({
-      download_url: `/api/dashboard/export/financial/download?token=${token}`,
+      download_url: `/api/dashboard/export/financial/download?token=${token}&format=${format}`,
       expires_at: new Date(expiresAt).toISOString(),
     });
   } catch (err) {
@@ -286,8 +418,96 @@ export async function requestFinancialExport(req, res) {
 // GET /api/dashboard/export/financial/download?token=
 // Télécharger export financier CSV (URL signée)
 // ---------------------------------------------------------------------------
+const EXPORT_COLUMNS = [
+  { key: "transaction_id", header: "ID Transaction" },
+  { key: "gross_amount", header: "Montant brut" },
+  { key: "moledi_commission", header: "Commission Moledi" },
+  { key: "net_organizer", header: "Revenu net" },
+  { key: "status", header: "Statut" },
+  { key: "payment_method", header: "Méthode paiement" },
+  { key: "initiated_at", header: "Initié" },
+  { key: "confirmed_at", header: "Confirmé" },
+];
+
+function toExportRow(t) {
+  return {
+    transaction_id: t.transaction_id,
+    gross_amount: Number(t.gross_amount) || 0,
+    moledi_commission: Number(t.moledi_commission) || 0,
+    net_organizer: Number(t.net_organizer) || 0,
+    status: t.status,
+    payment_method: t.payment_method,
+    initiated_at: new Date(t.initiated_at).toLocaleString("fr-FR"),
+    confirmed_at: t.confirmed_at ? new Date(t.confirmed_at).toLocaleString("fr-FR") : "—",
+  };
+}
+
+function sendCsvExport(res, rows) {
+  const header = EXPORT_COLUMNS.map((c) => c.header).join(",");
+  const lines = rows.map((r) => EXPORT_COLUMNS.map((c) => r[c.key]).join(","));
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", "attachment; filename=export-financier.csv");
+  return res.status(200).send([header, ...lines].join("\n"));
+}
+
+async function sendXlsxExport(res, rows) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Export financier");
+  sheet.columns = EXPORT_COLUMNS.map((c) => ({ header: c.header, key: c.key, width: 22 }));
+  sheet.getRow(1).font = { bold: true };
+  rows.forEach((r) => sheet.addRow(r));
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader("Content-Disposition", "attachment; filename=export-financier.xlsx");
+  await workbook.xlsx.write(res);
+  return res.end();
+}
+
+function sendPdfExport(res, rows) {
+  const doc = new PDFDocument({ size: "A4", margin: 40, layout: "landscape" });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", "attachment; filename=export-financier.pdf");
+  doc.pipe(res);
+
+  doc.fontSize(16).font("Helvetica-Bold").text("Export financier — Moledi Events", { align: "center" });
+  doc.moveDown(0.3);
+  doc.fontSize(9).font("Helvetica").fillColor("#475569").text(
+    `Généré le ${new Date().toLocaleString("fr-FR")} — ${rows.length} transaction(s)`,
+    { align: "center" }
+  );
+  doc.moveDown(1);
+
+  const colWidths = [130, 70, 90, 80, 70, 90, 100, 100];
+  const startX = doc.page.margins.left;
+  let y = doc.y;
+
+  function drawRow(values, { bold = false } = {}) {
+    if (y > doc.page.height - doc.page.margins.bottom - 20) {
+      doc.addPage();
+      y = doc.y;
+    }
+    doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(8).fillColor(bold ? "#0B1324" : "#1E293B");
+    let x = startX;
+    values.forEach((v, i) => {
+      doc.text(String(v ?? ""), x, y, { width: colWidths[i], ellipsis: true });
+      x += colWidths[i];
+    });
+    y += 18;
+  }
+
+  drawRow(EXPORT_COLUMNS.map((c) => c.header), { bold: true });
+  doc.moveTo(startX, y - 4).lineTo(startX + colWidths.reduce((a, b) => a + b, 0), y - 4).strokeColor("#E2E8F0").stroke();
+
+  rows.forEach((r) => drawRow(EXPORT_COLUMNS.map((c) => r[c.key])));
+
+  doc.end();
+}
+
 export async function downloadFinancialExport(req, res) {
-  const { token } = req.query;
+  const { token, format } = req.query;
 
   if (!token) {
     return res.status(400).json({ error: "Token manquant." });
@@ -300,29 +520,62 @@ export async function downloadFinancialExport(req, res) {
     }
 
     const transactions = await getTransactionsForExport(entry.userId);
+    const rows = transactions.map(toExportRow);
 
-    // Générer CSV
-    const header = "ID Transaction,Montant brut,Commission Moledi,Revenu net,Statut,Méthode paiement,Initié,Confirmé";
-    const lines = transactions.map((t) =>
-      [
-        t.transaction_id,
-        t.gross_amount,
-        t.moledi_commission,
-        t.net_organizer,
-        t.status,
-        t.payment_method,
-        new Date(t.initiated_at).toISOString(),
-        t.confirmed_at ? new Date(t.confirmed_at).toISOString() : "",
-      ].join(",")
-    );
-
-    const csv = [header, ...lines].join("\n");
-
-    res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader("Content-Disposition", "attachment; filename=export-financier.csv");
-    return res.status(200).send(csv);
+    if (format === "xlsx") return await sendXlsxExport(res, rows);
+    if (format === "pdf") return sendPdfExport(res, rows);
+    return sendCsvExport(res, rows);
   } catch (err) {
     return res.status(500).json({ error: err.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/dashboard/profile?email=
+// Profil complet (dashboard V2 > Mon profil)
+// ---------------------------------------------------------------------------
+export async function getProfile(req, res) {
+  const user = await resolveUser(req, res);
+  if (!user) return;
+
+  try {
+    const profile = await getFullProfile(user.user_id);
+    return res.status(200).json(profile);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/dashboard/profile
+// Body: { email, fullName, phone, phoneCountryCode }
+// ---------------------------------------------------------------------------
+export async function updateProfileHandler(req, res) {
+  const user = await resolveUser(req, res);
+  if (!user) return;
+
+  try {
+    const updated = await updateProfile(user.user_id, req.body);
+    return res.status(200).json({ success: true, user: updated });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/dashboard/profile/payout-phone
+// Configure/modifie le numéro Mobile Money de reversement.
+// Body: { email, phone, operator }
+// ---------------------------------------------------------------------------
+export async function updatePayoutPhoneHandler(req, res) {
+  const user = await resolveUser(req, res);
+  if (!user) return;
+
+  try {
+    const updated = await updatePayoutPhone(user.user_id, req.body);
+    return res.status(200).json({ success: true, ...updated });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
   }
 }
 

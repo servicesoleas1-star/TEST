@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
-  ArrowLeft,
   TrendingUp,
   Vote,
   DollarSign,
@@ -128,17 +127,13 @@ export default function CampaignAnalyticsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="sticky top-0 z-10 px-4 sm:px-8 py-4 flex items-center gap-3 bg-white border-b border-ink-200">
-        <Link to="/organisateur/tableau-de-bord" className="text-secondary">
-          <ArrowLeft size={20} />
-        </Link>
-        <h1 className="text-lg sm:text-xl font-bold text-ink-900">
-          Analytics
-        </h1>
-      </header>
+    <div className="flex flex-col gap-5">
+      <div>
+        <Link to={`/dashboard-v2/campagnes/${campaignId}`} className="text-xs font-semibold text-secondary">← Retour à la campagne</Link>
+        <h1 className="text-xl font-bold text-ink-900 mt-1">Analytics</h1>
+      </div>
 
-      <main className="px-4 sm:px-8 py-6 max-w-6xl mx-auto flex flex-col gap-6">
+      <div className="flex flex-col gap-6">
         {error && (
           <div className="rounded-xl p-4 text-sm" style={{ backgroundColor: "#FDECEC", color: "#B42318" }}>
             {error}
@@ -335,7 +330,7 @@ export default function CampaignAnalyticsPage() {
             </div>
           </>
         ) : null}
-      </main>
+      </div>
     </div>
   );
 }

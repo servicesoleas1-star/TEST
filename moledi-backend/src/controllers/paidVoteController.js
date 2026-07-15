@@ -21,7 +21,7 @@ import {
  * pour ne jamais stocker un montant incohérent avec le prix unitaire.
  */
 export async function initiatePaidVote(req, res) {
-  const { pollSlug, candidateId, quantity, amount, phoneNumber, idempotencyKey, visitorId } =
+  const { pollSlug, candidateId, quantity, amount, phoneNumber, idempotencyKey, visitorId, countryCode } =
     req.body;
 
   if (!idempotencyKey) {
@@ -77,9 +77,10 @@ export async function initiatePaidVote(req, res) {
 
   const grossAmount = (finalQuantity * pricePerVote).toFixed(2);
 
-  const aggregator = await pickMobileMoneyAggregator("CM");
+  const country = countryCode || "CM";
+  const aggregator = await pickMobileMoneyAggregator(country);
   if (!aggregator) {
-    return res.status(503).json({ error: "Aucun agrégateur Mobile Money disponible pour le moment." });
+    return res.status(503).json({ error: "Aucun moyen de paiement Mobile Money disponible pour ce pays pour le moment." });
   }
 
   await ensureVisitorExists(visitorId);
@@ -90,8 +91,9 @@ export async function initiatePaidVote(req, res) {
     grossAmount,
     idempotencyKey,
     aggregatorId: aggregator.aggregator_id,
-    operator: "Orange",
+    operator: aggregator.name,
     phoneNumber,
+    countryCode: country,
   });
 
   // On mémorise candidat + quantité pour créditer les votes exacts au

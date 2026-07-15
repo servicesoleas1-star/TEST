@@ -3,15 +3,11 @@
  * production-side. Keeps the rest of the app decoupled from where files live.
  */
 
-// Brand — exactly two logo files, both transparent PNGs (no baked-in
-// background), droppable in /public/ with no code change:
-//   - logo: the full wordmark, used everywhere the brand needs to be
-//     prominent (main header, footer, hero panels).
-//   - logoMark: the "M" symbol alone, used only where space is tight
-//     (compact/secondary placements).
+// Brand — un seul fichier logo, transparent PNG, utilisé partout sur le
+// site (header, footer, pages d'auth, animations). Un seul nom, droppable
+// dans /public/logo.png sans aucun changement de code.
 export const media = {
-  logo: '/logo-principal.png',
-  logoMark: '/logo-mark.png',
+  logo: '/logo.png',
   heroPoster: '/hero-poster.jpg',
   heroVideo: '/hero-video.mp4',
   // Separate URL from heroVideo on purpose — drop a different file at
@@ -46,9 +42,9 @@ export const illustration = {
   // meaning (creating a page / configuring options); step 4 (cashout)
   // confirmed fine.
   create: u('1454165804606-c3d57bc86b40'),      // hands + laptop, building a page
-  configure: u('1531403009284-440f080d1e12'),   // adjusting settings on screen
+  configure: '/configuration%20acceuil.jpg',    // photo réelle fournie par le client
   share: u('1611926653458-09294b3142bf'),       // phone share / messaging
-  cashout: u('1556742049-0cfed4f6a45d'),        // mobile payment confirmation
+  cashout: '/reception%20argent.jpg',           // photo réelle fournie par le client
 
   // Pricing teaser — a stack of receipts / calculator, not a stock desk.
   pricing: u('1554224155-6726b3ff858f'),

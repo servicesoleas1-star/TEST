@@ -44,12 +44,16 @@ const SELECT_COLUMNS = `
   c.display_name,
   c.real_name,
   c.cover_photo_url AS photo_url,
+  c.additional_photos_urls,
+  c.videos_urls,
   c.biography AS description,
   c.payout_phone AS mobile_money,
   c.phone,
   c.email,
   c.position,
   c.active,
+  c.score,
+  c.rank,
   cat.name AS category
 `;
 
@@ -58,7 +62,18 @@ const SELECT_COLUMNS = `
  * (real_name est repris de display_name si non fourni, car NOT NULL en base).
  */
 export async function createCandidate(pollId, data) {
-  const { display_name, real_name, photo_url, description, category, phone, email, mobile_money } = data;
+  const {
+    display_name,
+    real_name,
+    photo_url,
+    description,
+    category,
+    phone,
+    email,
+    mobile_money,
+    additional_photos_urls,
+    videos_urls,
+  } = data;
 
   if (!display_name) {
     throw new Error("display_name est obligatoire.");
@@ -69,10 +84,22 @@ export async function createCandidate(pollId, data) {
 
   const { rows } = await pool.query(
     `INSERT INTO candidates
-       (poll_id, category_id, display_name, real_name, cover_photo_url, biography, phone, email, payout_phone)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       (poll_id, category_id, display_name, real_name, cover_photo_url, biography, phone, email, payout_phone, additional_photos_urls, videos_urls)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING candidate_id, display_name, position`,
-    [pollId, categoryId, display_name, finalRealName, photo_url || null, description || null, phone || null, email || null, mobile_money || null]
+    [
+      pollId,
+      categoryId,
+      display_name,
+      finalRealName,
+      photo_url || null,
+      description || null,
+      phone || null,
+      email || null,
+      mobile_money || null,
+      Array.isArray(additional_photos_urls) ? additional_photos_urls : [],
+      Array.isArray(videos_urls) ? videos_urls : [],
+    ]
   );
   return rows[0];
 }
@@ -96,7 +123,18 @@ export async function listCandidates(pollId) {
  * Met à jour un candidat (tous les champs optionnels).
  */
 export async function updateCandidate(candidateId, data) {
-  const { display_name, real_name, photo_url, description, category, phone, email, mobile_money } = data;
+  const {
+    display_name,
+    real_name,
+    photo_url,
+    description,
+    category,
+    phone,
+    email,
+    mobile_money,
+    additional_photos_urls,
+    videos_urls,
+  } = data;
 
   const { rows: current } = await pool.query(
     `SELECT poll_id FROM candidates WHERE candidate_id = $1`,
@@ -142,6 +180,14 @@ export async function updateCandidate(candidateId, data) {
     updates.push(`payout_phone = $${paramIndex++}`);
     params.push(mobile_money);
   }
+  if (additional_photos_urls !== undefined) {
+    updates.push(`additional_photos_urls = $${paramIndex++}`);
+    params.push(Array.isArray(additional_photos_urls) ? additional_photos_urls : []);
+  }
+  if (videos_urls !== undefined) {
+    updates.push(`videos_urls = $${paramIndex++}`);
+    params.push(Array.isArray(videos_urls) ? videos_urls : []);
+  }
 
   if (updates.length === 0) return null;
 
@@ -174,9 +220,13 @@ export async function reorderCandidates(orderedList) {
 
 /**
  * Importe des candidats via CSV. Format attendu :
- *   display_name, real_name, photo_url, description, category, phone, email, mobile_money
- * Délimiteur : virgule
- * Encoding : UTF-8
+ *   display_name, real_name, description, category, phone, email, mobile_money
+ * Délimiteur : virgule / Encodage : UTF-8
+ *
+ * Volontairement AUCUNE colonne d'URL de fichier (photo/vidéo) : un
+ * organisateur qui importe en masse ne connaît pas d'URL de média — les
+ * photos/vidéos de chaque candidat s'ajoutent ensuite via l'upload dans la
+ * fiche candidat (voir ManageCandidates.jsx).
  */
 export async function importCandidatesFromCSV(pollId, csvContent) {
   return new Promise((resolve, reject) => {
@@ -192,7 +242,7 @@ export async function importCandidatesFromCSV(pollId, csvContent) {
     parser.on("readable", function () {
       let record;
       while ((record = parser.read())) {
-        const [display_name, real_name, photo_url, description, category, phone, email, mobile_money] = record;
+        const [display_name, real_name, description, category, phone, email, mobile_money] = record;
 
         if (!display_name || display_name.trim() === "") {
           return reject(new Error("Colonne display_name (1ère) est obligatoire sur chaque ligne."));
@@ -201,7 +251,6 @@ export async function importCandidatesFromCSV(pollId, csvContent) {
         candidates.push({
           display_name: display_name.trim(),
           real_name: real_name?.trim() || null,
-          photo_url: photo_url?.trim() || null,
           description: description?.trim() || null,
           category: category?.trim() || null,
           phone: phone?.trim() || null,
@@ -224,10 +273,10 @@ export async function importCandidatesFromCSV(pollId, csvContent) {
           const finalRealName = cand.real_name || cand.display_name;
           const { rows } = await pool.query(
             `INSERT INTO candidates
-               (poll_id, category_id, display_name, real_name, cover_photo_url, biography, phone, email, payout_phone)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+               (poll_id, category_id, display_name, real_name, biography, phone, email, payout_phone)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              RETURNING candidate_id, display_name, position`,
-            [pollId, categoryId, cand.display_name, finalRealName, cand.photo_url, cand.description, cand.phone, cand.email, cand.mobile_money]
+            [pollId, categoryId, cand.display_name, finalRealName, cand.description, cand.phone, cand.email, cand.mobile_money]
           );
           inserted.push(rows[0]);
         }

@@ -1,6 +1,7 @@
 import {
   getCampaignSummary,
   getVotesByDay,
+  getRevenueByDay,
   getVotesByHour,
   getVoteBreakdown,
   getTopCandidates,
@@ -75,6 +76,30 @@ export async function getVotesByDayHandler(req, res) {
 
   try {
     const data = await getVotesByDay(pollId, days);
+    return res.status(200).json({ items: data });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/dashboard/campaigns/:pollId/analytics/revenue-by-day?days=
+// Graphique revenus par jour
+// ---------------------------------------------------------------------------
+export async function getRevenueByDayHandler(req, res) {
+  const user = await resolveUser(req, res);
+  if (!user) return;
+
+  const { pollId } = req.params;
+  const days = Math.min(365, Math.max(7, parseInt(req.query.days, 10) || 30));
+
+  const isOwner = await verifyCampaignOwnership(pollId, user.user_id);
+  if (!isOwner) {
+    return res.status(403).json({ error: "Vous n'êtes pas propriétaire de cette campagne." });
+  }
+
+  try {
+    const data = await getRevenueByDay(pollId, days);
     return res.status(200).json({ items: data });
   } catch (err) {
     return res.status(500).json({ error: err.message });

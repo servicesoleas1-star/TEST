@@ -1,6 +1,17 @@
 import { generateSecureToken } from "../utils/tokens.js";
 import { hashPassword, verifyPassword } from "../utils/password.js";
 import { safeRedirect } from "../utils/redirect.js";
+import { sendMail } from "../utils/mailer.js";
+import { associateVisitor } from "../store/visitorsStore.js";
+import { updateUserPreferences } from "../store/userPreferencesStore.js";
+import { getClientIp } from "../utils/hashIp.js";
+import { passesHumanCheck, verifyTurnstileToken } from "../utils/antiBot.js";
+import { setSessionCookies, clearSessionCookies } from "../utils/cookies.js";
+import {
+  createSession,
+  recordLoginLog,
+  invalidateSessionByAccessToken,
+} from "../store/sessionStore.js";
 import {
   findUserByEmail,
   createUser,
@@ -29,6 +40,61 @@ const GENERIC_AUTH_ERROR = "Email ou mot de passe incorrect.";
 const GENERIC_RESEND_MESSAGE =
   "Si un compte existe avec cet email, un nouveau lien de vérification vient d'être envoyé.";
 
+// Le visitor_id anonyme (cookie moledi_visitor_id, voir lib/visitorId.js
+// côté frontend) peut arriver soit dans le body, soit dans le header
+// X-Visitor-Id (withVisitorHeader()) — on accepte les deux.
+function resolveVisitorId(req) {
+  return req.body?.visitorId || req.headers["x-visitor-id"] || null;
+}
+
+// La colonne visitors.language contient soit une locale brute détectée
+// automatiquement à la première visite (ex: "fr-FR", "en-US", voir
+// visitorsController.initVisitor), soit "FR"/"EN" normalisé si le visiteur a
+// explicitement basculé le sélecteur de langue -- on normalise dans tous les
+// cas avant de l'appliquer à user_preferences.language (qui n'accepte que
+// "FR" ou "EN").
+function normalizeLanguage(rawLanguage) {
+  if (!rawLanguage) return null;
+  return rawLanguage.toLowerCase().startsWith("en") ? "EN" : "FR";
+}
+
+/**
+ * Lie le visiteur anonyme au compte, sans jamais faire échouer la requête
+ * d'auth appelante en cas de souci (l'association est un bonus analytique,
+ * pas une condition de connexion/inscription). Synchronise au passage la
+ * langue déjà connue du visiteur (choisie avant inscription/connexion) vers
+ * ses préférences de compte, pour que le dashboard s'ouvre directement dans
+ * la langue qu'il utilisait déjà sur le site public.
+ */
+async function tryAssociateVisitor(req, userId) {
+  const visitorId = resolveVisitorId(req);
+  if (!visitorId) return;
+  try {
+    const result = await associateVisitor(visitorId, userId);
+    const language = normalizeLanguage(result?.language);
+    if (language) {
+      await updateUserPreferences(userId, { language });
+    }
+  } catch (err) {
+    console.warn("Visitor association failed:", err.message);
+  }
+}
+
+/**
+ * Ouvre une session serveur réelle (ligne user_sessions + cookies httpOnly)
+ * pour un utilisateur qui vient de se connecter ou de vérifier son email.
+ * Fenêtre glissante de 2h côté access token, 30 jours côté refresh token
+ * (voir store/sessionStore.js et middleware/auth.js) — répond au besoin de
+ * rester connecté même après fermeture du navigateur.
+ */
+async function establishSession(req, res, userId) {
+  const session = await createSession(userId, {
+    ip: getClientIp(req),
+    browser: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"].slice(0, 500) : null,
+  });
+  setSessionCookies(res, { accessToken: session.access_token, refreshToken: session.refresh_token });
+}
+
 /**
  * Émet un nouveau token de vérification pour un email donné et l'envoie
  * (ici : log console — à remplacer par un vrai envoi SMTP/service d'emailing).
@@ -39,12 +105,35 @@ async function issueVerificationToken(email) {
   const token = generateSecureToken();
   await saveVerificationToken(token, email, TOKEN_TTL_HOURS);
 
-  // TODO: remplacer par un vrai envoi d'email (SendGrid, SES, Postmark...)
-  console.log(
-    `[EMAIL] Lien de vérification pour ${email} : /inscription/verification?token=${token}`
-  );
+  const link = `${process.env.FRONTEND_URL || "http://localhost:5173"}/inscription/verification?token=${token}`;
+  try {
+    await sendMail({
+      to: email,
+      subject: "Vérifiez votre adresse email — Moledi Events",
+      html: `<p>Bienvenue sur Moledi Events !</p><p>Cliquez sur le lien ci-dessous pour vérifier votre adresse email (valable ${TOKEN_TTL_HOURS}h) :</p><p><a href="${link}">${link}</a></p>`,
+    });
+  } catch (err) {
+    console.warn("Envoi de l'email de vérification échoué :", err.message);
+  }
 
   return token;
+}
+
+/**
+ * GET /api/auth/check-email?email=...
+ * Vérification d'unicité en temps réel pour le formulaire d'inscription
+ * (contrairement à la connexion, il est normal et attendu ici de révéler
+ * si un email est déjà pris — voir RegistrationForm.jsx).
+ */
+export async function checkEmail(req, res) {
+  const email = typeof req.query.email === "string" ? req.query.email : "";
+
+  if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+    return res.status(400).json({ error: "Adresse email invalide." });
+  }
+
+  const existing = await findUserByEmail(email);
+  return res.status(200).json({ available: !existing });
 }
 
 /**
@@ -55,8 +144,10 @@ async function issueVerificationToken(email) {
  * envoie immédiatement un lien de vérification email, comme le fait déjà
  * le flux de renvoi (resendVerification) — même mécanisme, même cooldown.
  */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function register(req, res) {
-  const { fullName, email, password } = req.body;
+  const { fullName, email, password, phone, phoneCountryCode, acquisitionSourceId } = req.body;
 
   if (!fullName || typeof fullName !== "string" || !fullName.trim()) {
     return res.status(400).json({ error: "Le nom complet est requis." });
@@ -83,10 +174,18 @@ export async function register(req, res) {
     passwordHash,
     fullName: fullName.trim(),
     role: "ORGANIZER",
+    phone: typeof phone === "string" && phone.trim() ? phone.trim() : null,
+    phoneCountryCode: typeof phoneCountryCode === "string" && phoneCountryCode.trim() ? phoneCountryCode.trim() : null,
+    // Validé en format UUID uniquement : une source invalide/inconnue ne doit
+    // jamais faire échouer la création de compte (FK acquisition_sources).
+    acquisitionSourceId: typeof acquisitionSourceId === "string" && UUID_REGEX.test(acquisitionSourceId)
+      ? acquisitionSourceId
+      : null,
   });
 
   await issueVerificationToken(user.email);
   await setLastResendAt(user.email, Date.now());
+  await tryAssociateVisitor(req, user.user_id);
 
   return res.status(201).json({
     success: true,
@@ -122,7 +221,15 @@ export async function verifyEmail(req, res) {
   }
 
   await markTokenUsed(token);
-  await markEmailVerified(entry.email);
+  const user = await markEmailVerified(entry.email);
+
+  // Vérification email réussie = l'utilisateur entre officiellement dans
+  // l'application : on ouvre déjà sa session ici (plutôt que d'attendre un
+  // login séparé) pour qu'il arrive sur /inscription/profil puis /dashboard
+  // déjà connecté.
+  if (user) {
+    await establishSession(req, res, user.user_id);
+  }
 
   return res.status(200).json({
     success: true,
@@ -183,6 +290,23 @@ export async function login(req, res) {
     return res.status(400).json({ error: GENERIC_AUTH_ERROR });
   }
 
+  // Vérification anti-robot : honeypot + délai de remplissage (filtre
+  // gratuit contre les bots basiques) PUIS Cloudflare Turnstile (vraie
+  // analyse de l'activité du navigateur, voir utils/antiBot.js). Une
+  // soumission jugée robotique est traitée exactement comme un échec de
+  // connexion classique, pour ne jamais révéler à un attaquant qu'il a été
+  // détecté.
+  if (!passesHumanCheck(req.body)) {
+    await registerFailedLogin(email, LOGIN_MAX_ATTEMPTS, LOGIN_LOCKOUT_MINUTES);
+    return res.status(401).json({ error: GENERIC_AUTH_ERROR });
+  }
+
+  const turnstileValid = await verifyTurnstileToken(req.body.turnstileToken, getClientIp(req));
+  if (!turnstileValid) {
+    await registerFailedLogin(email, LOGIN_MAX_ATTEMPTS, LOGIN_LOCKOUT_MINUTES);
+    return res.status(401).json({ error: "Vérification anti-robot échouée. Rechargez la page et réessayez." });
+  }
+
   const attempts = await getLoginAttempts(email);
   if (attempts.lockedUntil && Date.now() < attempts.lockedUntil) {
     const minutesLeft = Math.ceil((attempts.lockedUntil - Date.now()) / 60000);
@@ -193,9 +317,16 @@ export async function login(req, res) {
 
   const user = await findUserByEmail(email);
   const passwordValid = user ? await verifyPassword(password, user.password_hash) : false;
+  const userAgent = req.headers["user-agent"];
+  const ip = getClientIp(req);
 
   if (!user || !passwordValid) {
     await registerFailedLogin(email, LOGIN_MAX_ATTEMPTS, LOGIN_LOCKOUT_MINUTES);
+    if (user) {
+      // Le journal de connexion nécessite un user_id valide (FK) — une
+      // tentative sur un email inconnu n'a donc pas de ligne à rattacher.
+      await recordLoginLog({ userId: user.user_id, ip, userAgent, success: false });
+    }
     // Même message que l'email soit inconnu ou le mot de passe faux.
     return res.status(401).json({ error: GENERIC_AUTH_ERROR });
   }
@@ -205,6 +336,9 @@ export async function login(req, res) {
   }
 
   await resetLoginAttempts(email);
+  await recordLoginLog({ userId: user.user_id, ip, userAgent, success: true });
+  await establishSession(req, res, user.user_id);
+  await tryAssociateVisitor(req, user.user_id);
 
   return res.status(200).json({
     success: true,
@@ -213,10 +347,40 @@ export async function login(req, res) {
   });
 }
 
+/**
+ * GET /api/auth/me
+ * Retourne l'utilisateur de la session en cours (cookie httpOnly, voir
+ * middleware/auth.js), ou 401 si aucune session valide. Permet au frontend
+ * de savoir qu'il est toujours connecté après une fermeture du navigateur,
+ * sans dépendre uniquement de sessionStorage (perdu à la fermeture de
+ * l'onglet).
+ */
+export async function me(req, res) {
+  if (!req.authUser) {
+    return res.status(401).json({ error: "Aucune session active." });
+  }
+  return res.status(200).json({ user: req.authUser });
+}
+
+/**
+ * POST /api/auth/logout
+ * Invalide la session courante (côté serveur) et efface les cookies.
+ */
+export async function logout(req, res) {
+  const accessToken = req.cookies?.moledi_session;
+  if (accessToken) {
+    await invalidateSessionByAccessToken(accessToken);
+  }
+  clearSessionCookies(res);
+  return res.status(200).json({ success: true });
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/auth/change-password
 // Body: { email, currentPassword, newPassword }
-// Invalide toutes les sessions après changement
+// Invalide toutes les AUTRES sessions après changement (sécurité), en
+// préservant la session du navigateur courant pour ne pas déconnecter
+// l'utilisateur juste après qu'il ait changé son propre mot de passe.
 // ---------------------------------------------------------------------------
 export async function changePassword(req, res) {
   const { email, currentPassword, newPassword } = req.body;
@@ -263,10 +427,16 @@ export async function changePassword(req, res) {
       [newPasswordHash, user.user_id]
     );
 
-    // Invalider TOUTES les sessions actives (sécurité : force la déconnexion partout)
+    // Invalider toutes les sessions actives SAUF celle du navigateur courant
+    // (identifiée par le cookie moledi_session déjà présent sur cette
+    // requête) -- force la déconnexion partout ailleurs sans déconnecter
+    // l'utilisateur qui vient de faire le changement.
+    const currentAccessToken = req.cookies?.moledi_session || null;
     await pool.query(
-      `UPDATE user_sessions SET invalidated = TRUE WHERE user_id = $1 AND invalidated = FALSE`,
-      [user.user_id]
+      `UPDATE user_sessions SET invalidated = TRUE
+       WHERE user_id = $1 AND invalidated = FALSE
+         AND ($2::text IS NULL OR access_token IS DISTINCT FROM $2::text)`,
+      [user.user_id, currentAccessToken]
     );
 
     return res.status(200).json({ success: true });

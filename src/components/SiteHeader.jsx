@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { media, flag } from '../config/media';
+import {
+  applyLanguage,
+  getCurrentDisplayedLanguage,
+  loadGoogleTranslateScript,
+} from '../services/googleTranslateService';
 
 const navLinks = [
   { label: 'Accueil', href: '/' },
@@ -21,20 +26,32 @@ const item = {
 };
 
 const LANGUAGE_OPTIONS = [
-  { code: 'fr', country: 'fr', label: 'FR' },
-  { code: 'en', country: 'gb', label: 'EN' },
+  { code: 'FR', country: 'fr', label: 'FR' },
+  { code: 'EN', country: 'gb', label: 'EN' },
 ];
 
 /**
- * Just the button + a menu for now — no translation system wired up yet
- * (that's a separate, later piece of work). A real flag image (flagcdn),
- * never an emoji, with the language initials overlaid so it reads as a
- * language switch rather than "this is France/the UK".
+ * Bouton drapeau + FR/EN qui ouvre un mini menu pour choisir la langue --
+ * branché sur le vrai service de traduction (googleTranslateService.js) :
+ * la préférence est mémorisée (localStorage + visitors.language) et la
+ * page courante est retraduite en place, sans rechargement complet dans le
+ * cas courant (voir applyLanguage()).
  */
-function LanguageButton() {
-  const [lang, setLang] = useState('fr');
+export function LanguageButton() {
+  const [lang, setLang] = useState('FR');
   const [open, setOpen] = useState(false);
-  const current = LANGUAGE_OPTIONS.find((o) => o.code === lang);
+  const [switching, setSwitching] = useState(false);
+  const current = LANGUAGE_OPTIONS.find((o) => o.code === lang) || LANGUAGE_OPTIONS[0];
+
+  useEffect(() => {
+    // Le drapeau affiché doit toujours refléter ce qui est RÉELLEMENT
+    // traduit à l'écran (cookie googtrans), pas une préférence mémorisée à
+    // part qui peut se désynchroniser -- voir getCurrentDisplayedLanguage().
+    setLang(getCurrentDisplayedLanguage());
+    // Le widget doit être présent sur la page pour pouvoir traduire, qu'on
+    // soit en FR (rien à traduire) ou déjà en EN au chargement.
+    loadGoogleTranslateScript();
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -43,13 +60,33 @@ function LanguageButton() {
     return () => document.removeEventListener('click', onClick);
   }, [open]);
 
+  async function handleSelect(code) {
+    setOpen(false);
+    if (code === lang) return;
+    setSwitching(true);
+    setLang(code);
+    try {
+      await applyLanguage(code);
+    } finally {
+      setSwitching(false);
+    }
+  }
+
   return (
-    <div className="relative" onClick={(e) => e.stopPropagation()}>
+    // notranslate + translate="no" -- les VRAIS attributs que Google
+    // Translate respecte (contrairement à l'ancien data-no-translate, qui
+    // n'existe pas dans son API et ne faisait donc rien) : sans ça, Google
+    // traduisait le mot "en" du bouton comme la préposition française et
+    // affichait "IN" au lieu du code langue "EN" une fois la page traduite.
+    // Les codes langue ne doivent JAMAIS être traduits, quelle que soit la
+    // langue active.
+    <div className="relative notranslate" translate="no" onClick={(e) => e.stopPropagation()}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label="Changer de langue"
-        className="relative w-9 h-9 rounded-full border border-ink-200 overflow-hidden flex items-center justify-center hover:border-primary transition-colors"
+        disabled={switching}
+        className="relative w-9 h-9 rounded-full border border-ink-200 overflow-hidden flex items-center justify-center hover:border-primary transition-colors disabled:opacity-60"
       >
         <img src={flag(current.country, 40)} alt="" className="w-full h-full object-cover" />
         <span className="absolute inset-x-0 bottom-0 bg-ink-900/70 text-white text-[8px] font-bold tracking-wide text-center leading-tight py-[1px]">
@@ -70,10 +107,7 @@ function LanguageButton() {
               <li key={o.code}>
                 <button
                   type="button"
-                  onClick={() => {
-                    setLang(o.code);
-                    setOpen(false);
-                  }}
+                  onClick={() => handleSelect(o.code)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-ink-100 transition-colors ${
                     o.code === lang ? 'font-semibold text-primary' : 'text-ink-900'
                   }`}

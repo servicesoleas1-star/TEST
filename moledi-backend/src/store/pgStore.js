@@ -17,17 +17,20 @@ export async function findUserByEmail(email) {
   return rows[0] || null;
 }
 
-/**
- * Création minimale pour les besoins de ce squelette (tester le flux de
- * vérification). L'inscription complète (AUTH-03) devra fournir full_name,
- * role, etc. — voir contrainte NOT NULL sur users.full_name / users.role.
- */
-export async function createUser({ email, passwordHash, fullName = "Utilisateur", role = "ORGANIZER" }) {
+export async function createUser({
+  email,
+  passwordHash,
+  fullName = "Utilisateur",
+  role = "ORGANIZER",
+  phone = null,
+  phoneCountryCode = null,
+  acquisitionSourceId = null,
+}) {
   const { rows } = await pool.query(
-    `INSERT INTO users (email, password_hash, full_name, role)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO users (email, password_hash, full_name, role, phone, phone_country_code, acquisition_source_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING user_id, email, password_hash, email_verified`,
-    [email, passwordHash, fullName, role]
+    [email, passwordHash, fullName, role, phone, phoneCountryCode, acquisitionSourceId]
   );
   return rows[0];
 }

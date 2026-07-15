@@ -1,6 +1,7 @@
 import "dotenv/config";
 import app from "./app.js";
 import { expirePendingTransactions } from "./store/paidVoteStore.js";
+import { closeElapsedPolls } from "./services/closingReportService.js";
 import { ConfigManager } from "../lib/payment/configManager.js";
 import { PaymentLogger } from "../lib/payment/logger.js";
 
@@ -48,3 +49,25 @@ setInterval(async () => {
     console.error("[CRON expire-pending] Erreur :", err);
   }
 }, 5 * 60 * 1000);
+
+// ---------------------------------------------------------------------------
+// Clôture automatique des scrutins échus + génération du PV de clôture
+// (voir services/closingReportService.js -> closeElapsedPolls). Avant cet
+// ajout, aucun scrutin ne passait jamais en CLOSED automatiquement : la page
+// résultats et le PV restaient indisponibles indéfiniment après l'échéance.
+// Même fréquence que le cron d'expiration des paiements ci-dessus.
+// ---------------------------------------------------------------------------
+setInterval(async () => {
+  try {
+    const results = await closeElapsedPolls();
+    if (results.length > 0) {
+      console.log(`[CRON close-polls] ${results.length} scrutin(s) clôturé(s).`);
+    }
+  } catch (err) {
+    console.error("[CRON close-polls] Erreur :", err);
+  }
+}, 5 * 60 * 1000);
+
+// Un premier passage immédiat au démarrage évite d'attendre 5 min après un
+// redémarrage du serveur pour clôturer un scrutin déjà échu.
+closeElapsedPolls().catch((err) => console.error("[CRON close-polls] Erreur au démarrage :", err));

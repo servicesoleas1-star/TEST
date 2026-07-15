@@ -16,6 +16,75 @@ export async function findUserByEmail(email) {
   return rows[0] || null;
 }
 
+/**
+ * Profil complet (dashboard V2 > Mon profil) -- inclut les champs non
+ * couverts par findUserByEmail (utilisé partout ailleurs pour l'auth
+ * légère) : téléphone, avatar, numéro mobile money, date d'inscription, +
+ * quelques statistiques globales agrégées.
+ */
+export async function getFullProfile(userId) {
+  const { rows } = await pool.query(
+    `SELECT user_id, email, full_name, phone, phone_country_code, avatar_url,
+            payout_phone, payout_operator, created_at, role
+     FROM users WHERE user_id = $1 AND deleted_at IS NULL`,
+    [userId]
+  );
+  const user = rows[0];
+  if (!user) return null;
+
+  const { rows: statRows } = await pool.query(
+    `SELECT
+       (SELECT count(*) FROM polls p JOIN campaigns c ON c.campaign_id = p.poll_id WHERE c.owner_user_id = $1)::int AS total_campaigns,
+       (SELECT count(*) FROM votes v JOIN campaigns c ON c.campaign_id = v.poll_id WHERE c.owner_user_id = $1 AND v.status = 'COUNTED')::int AS total_votes,
+       (SELECT COALESCE(sum(net_organizer), 0) FROM transactions t JOIN campaigns c ON c.campaign_id = t.campaign_id WHERE c.owner_user_id = $1 AND t.status = 'CONFIRMED')::numeric AS total_revenue,
+       (SELECT count(*) FROM payout_requests WHERE user_id = $1 AND status = 'COMPLETED')::int AS total_payouts`,
+    [userId]
+  );
+
+  return { ...user, stats: statRows[0] };
+}
+
+/**
+ * Configure/modifie le numéro Mobile Money de reversement -- pré-configuré
+ * dans le profil, utilisé ensuite tel quel par la demande de retrait (voir
+ * Spec Fonctionnelle : "Numéro Mobile Money de destination — pré-configuré
+ * dans le profil, non modifiable ici [dans le formulaire de retrait]").
+ * L'ancien numéro est conservé dans payout_phone_history pour piste d'audit
+ * anti-fraude (déjà prévu par le schéma, users.payout_phone_history).
+ */
+export async function updatePayoutPhone(userId, { phone, operator }) {
+  if (!phone || !phone.trim()) throw new Error("Numéro Mobile Money requis.");
+
+  const { rows } = await pool.query(
+    `UPDATE users SET
+       payout_phone_history = CASE
+         WHEN payout_phone IS NOT NULL AND payout_phone <> $2
+           THEN array_append(payout_phone_history, payout_phone)
+         ELSE payout_phone_history
+       END,
+       payout_phone = $2,
+       payout_operator = COALESCE($3, payout_operator)
+     WHERE user_id = $1
+     RETURNING payout_phone, payout_operator, payout_phone_history`,
+    [userId, phone.trim(), operator || null]
+  );
+  return rows[0] || null;
+}
+
+export async function updateProfile(userId, { fullName, phone, phoneCountryCode, avatarUrl }) {
+  const { rows } = await pool.query(
+    `UPDATE users SET
+       full_name = COALESCE($2, full_name),
+       phone = COALESCE($3, phone),
+       phone_country_code = COALESCE($4, phone_country_code),
+       avatar_url = COALESCE($5, avatar_url)
+     WHERE user_id = $1
+     RETURNING user_id, email, full_name, phone, phone_country_code, avatar_url`,
+    [userId, fullName || null, phone || null, phoneCountryCode || null, avatarUrl || null]
+  );
+  return rows[0] || null;
+}
+
 // ---------------------------------------------------------------------------
 // Widgets — résumé
 // ---------------------------------------------------------------------------
@@ -119,6 +188,7 @@ export async function getPaginatedCampaigns(userId, page = 1, pageSize = 10) {
   const offset = (page - 1) * pageSize;
   const { rows } = await pool.query(
     `SELECT p.poll_id AS campaign_id, p.title, p.status, p.vote_type, p.slug, p.created_at,
+            p.cover_photo_url,
             (SELECT count(*) FROM votes v WHERE v.poll_id = p.poll_id AND v.status = 'COUNTED') AS vote_count
      FROM polls p
      JOIN campaigns c ON c.campaign_id = p.poll_id
@@ -214,6 +284,39 @@ export async function getPaginatedActivity(userId, page = 1, pageSize = 10) {
 }
 
 // ---------------------------------------------------------------------------
+// "Mon activité" (dashboard V2) — PROPRES actions de l'organisateur en tant
+// que participant/électeur sur la plateforme (votes qu'il a lui-même
+// effectués), retrouvées via le visitor_id lié à son compte
+// (visitors.account_id), pas les votes reçus sur ses propres campagnes
+// (voir getPaginatedActivity ci-dessus, qui répond à un besoin différent :
+// le fil "Activité récente" de la page d'accueil organisateur).
+// ---------------------------------------------------------------------------
+
+export async function getPaginatedOwnVotes(userId, page = 1, pageSize = 10) {
+  const offset = (page - 1) * pageSize;
+  const { rows } = await pool.query(
+    `SELECT v.vote_id, v.created_at, v.status, v.vote_type,
+            p.title AS poll_title, p.slug AS poll_slug,
+            cd.display_name AS candidate_name
+     FROM votes v
+     JOIN visitors vis ON vis.visitor_id = v.visitor_id
+     JOIN polls p ON p.poll_id = v.poll_id
+     JOIN candidates cd ON cd.candidate_id = v.candidate_id
+     WHERE vis.account_id = $1
+     ORDER BY v.created_at DESC
+     LIMIT $2 OFFSET $3`,
+    [userId, pageSize, offset]
+  );
+  const { rows: countRows } = await pool.query(
+    `SELECT count(*)::int AS total FROM votes v
+     JOIN visitors vis ON vis.visitor_id = v.visitor_id
+     WHERE vis.account_id = $1`,
+    [userId]
+  );
+  return { items: rows, total: countRows[0].total, page, pageSize };
+}
+
+// ---------------------------------------------------------------------------
 // Classement des candidats (pour un scrutin donné, vue organisateur — pas
 // soumise à la politique de visibilité publique puisque c'est son propre
 // tableau de bord).
@@ -268,10 +371,19 @@ export async function markNotificationsRead(userId, notifIds) {
   );
 }
 
+/**
+ * Bouton "Tout marquer comme lu" (dashboard V2 > Notifications) — marque
+ * TOUTES les notifications non lues d'un coup, contrairement à
+ * markNotificationsRead qui ne marque que la page consultée.
+ */
+export async function markAllNotificationsRead(userId) {
+  await pool.query(`UPDATE notifications SET read = TRUE WHERE user_id = $1 AND read = FALSE`, [userId]);
+}
+
 export async function getPaginatedLoginLogs(userId, page = 1, pageSize = 10) {
   const offset = (page - 1) * pageSize;
   const { rows } = await pool.query(
-    `SELECT log_id, ip, browser, success, created_at
+    `SELECT log_id, ip, browser, device_name, success, created_at
      FROM login_logs WHERE user_id = $1
      ORDER BY created_at DESC
      LIMIT $2 OFFSET $3`,
@@ -344,6 +456,54 @@ export function validateSignedExportToken(token) {
     return null;
   }
   return entry;
+}
+
+/**
+ * Historique des revenus paginé (dashboard V2 > Finances > Historique) --
+ * même données que getTransactionsForExport mais paginées pour l'affichage
+ * écran plutôt que pour un export complet.
+ */
+export async function getPaginatedTransactions(userId, page = 1, pageSize = 10) {
+  const offset = (page - 1) * pageSize;
+  const { rows } = await pool.query(
+    `SELECT t.transaction_id, t.gross_amount, t.moledi_commission, t.net_organizer,
+            t.status, t.payment_method, t.initiated_at, t.confirmed_at,
+            p.title AS campaign_title
+     FROM transactions t
+     JOIN campaigns c ON c.campaign_id = t.campaign_id
+     LEFT JOIN polls p ON p.poll_id = t.campaign_id
+     WHERE c.owner_user_id = $1
+     ORDER BY t.initiated_at DESC
+     LIMIT $2 OFFSET $3`,
+    [userId, pageSize, offset]
+  );
+  const { rows: countRows } = await pool.query(
+    `SELECT count(*)::int AS total FROM transactions t
+     JOIN campaigns c ON c.campaign_id = t.campaign_id
+     WHERE c.owner_user_id = $1`,
+    [userId]
+  );
+  return { items: rows, total: countRows[0].total, page, pageSize };
+}
+
+/**
+ * Reversements (payout_requests) paginés (dashboard V2 > Finances > Reversements).
+ */
+export async function getPaginatedPayouts(userId, page = 1, pageSize = 10) {
+  const offset = (page - 1) * pageSize;
+  const { rows } = await pool.query(
+    `SELECT payout_id, requested_amount, net_amount, payout_phone, status, requested_at, executed_at
+     FROM payout_requests
+     WHERE user_id = $1
+     ORDER BY requested_at DESC
+     LIMIT $2 OFFSET $3`,
+    [userId, pageSize, offset]
+  );
+  const { rows: countRows } = await pool.query(
+    `SELECT count(*)::int AS total FROM payout_requests WHERE user_id = $1`,
+    [userId]
+  );
+  return { items: rows, total: countRows[0].total, page, pageSize };
 }
 
 export async function getTransactionsForExport(userId) {

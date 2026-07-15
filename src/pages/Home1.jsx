@@ -12,7 +12,7 @@ import {
   HowTimeline,
   Coverage,
   PricingTeaser,
-  SparkleCursor,
+  ZUIHubStory,
   universes,
 } from './Home2';
 
@@ -197,7 +197,9 @@ function StaticHeroLayer() {
       </video>
       <div className="absolute inset-0 bg-gradient-to-b from-ink-900/70 via-ink-900/45 to-ink-900/85" />
       <div className="absolute inset-0 bg-gradient-to-t from-ink-900/50 via-transparent to-transparent" />
-      {/* Smooth hand-off into the next (white) section, exactly as before. */}
+      {/* Smooth hand-off into the next (white) section -- the ZUI story
+          right after this hero (desktop/tablet) is itself white now, no
+          dark section to hand off into, so this always fades to white. */}
       <div className="absolute inset-x-0 bottom-0 h-40 sm:h-56 bg-gradient-to-b from-transparent to-white pointer-events-none" />
       <div className="relative h-full flex items-center justify-center px-5 sm:px-6 lg:px-8 text-center">
         <div className="max-w-6xl mx-auto w-full">
@@ -225,12 +227,12 @@ function StaticHeroLayer() {
             </motion.p>
             <motion.div
               variants={heroRise}
-              className="mt-8 sm:mt-10 flex flex-row items-stretch justify-center gap-3 sm:gap-4 px-2"
+              className="mt-8 sm:mt-10 flex flex-col sm:flex-row items-stretch justify-center gap-3 sm:gap-4 w-full max-w-xs sm:max-w-none mx-auto"
             >
-              <a href="/inscription" className="btn btn-primary flex-1 sm:flex-initial px-5 sm:px-8 py-3 sm:py-3.5">
+              <a href="/inscription" className="btn btn-primary w-full sm:w-auto whitespace-nowrap sm:flex-initial px-5 sm:px-8 py-3 sm:py-3.5">
                 Créer un événement
               </a>
-              <a href="/evenements" className="btn btn-light flex-1 sm:flex-initial px-5 sm:px-8 py-3 sm:py-3.5">
+              <a href="/evenements" className="btn btn-light w-full sm:w-auto whitespace-nowrap sm:flex-initial px-5 sm:px-8 py-3 sm:py-3.5">
                 Parcourir les événements
               </a>
             </motion.div>
@@ -435,8 +437,17 @@ function ParallaxStory() {
       {PANELS.map((panel, i) => (
         <ImageLayer key={panel.universe.id} panel={panel} panelRef={(el) => (panelRefs.current[i] = el)} />
       ))}
-      {/* Fixed text layer sits above every image layer and never moves. */}
-      <div className="absolute inset-0 z-30">
+      {/* Fixed text layer sits above every image layer and never moves.
+          pointer-events-none on the WRAPPER is essential : unlike the
+          panels themselves (transformed via GSAP, so their hit-test area
+          moves off-screen with them), this wrapper's own box is never
+          transformed and always spans the full section -- with the default
+          pointer-events:auto it silently ate every click/tap underneath it
+          (the hero's "Créer un événement" / "Parcourir les événements"
+          buttons included) even while fully transparent there. Each
+          PanelContent re-enables pointer-events itself (via GSAP, on its
+          own root) only while it's the active/visible panel. */}
+      <div className="absolute inset-0 z-30 pointer-events-none">
         {PANELS.map((panel, i) => (
           <PanelContent key={panel.universe.id} panel={panel} contentRef={(el) => (contentRefs.current[i] = el)} />
         ))}
@@ -491,15 +502,60 @@ function useLenisScroll() {
   }, []);
 }
 
+// Desktop/tablet only (≥768px) — on mobile the ZUI zoom story is skipped
+// entirely and the page stays exactly the parallax version, as decided:
+// too heavy/fiddly to make the scroll-jacking camera work well on touch.
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    setIsDesktop(mq.matches);
+    const handler = (e) => setIsDesktop(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isDesktop;
+}
+
+/**
+ * The hero-story slot: on desktop/tablet, the page must NOT open directly
+ * on the zoom story — it opens on a normal, static hero (background video,
+ * title, CTAs), exactly like the original "Home V2" layout. Only once the
+ * visitor scrolls past that static hero do they reach the ZUI zoom story
+ * (the 6-universes flight), which then pins the viewport and plays once.
+ * Once the story reaches its own finale (slogan + "Relancer l'animation"
+ * button, see ZUIHubStory in Home2.jsx), the visitor can replay it as many
+ * times as they want within the same page load; a full reload still always
+ * starts fresh (the `replayKey` lives in plain React state, not
+ * sessionStorage). Mobile always gets the parallax story directly (its own
+ * first panel already IS this same static hero) — the ZUI zoom story is
+ * desktop/tablet only.
+ */
+function HeroStorySwap() {
+  const isDesktop = useIsDesktop();
+  const [replayKey, setReplayKey] = useState(0);
+
+  if (!isDesktop) {
+    return <ParallaxStory />;
+  }
+  return (
+    <>
+      <div className="relative h-[100svh] overflow-hidden">
+        <StaticHeroLayer />
+      </div>
+      <ZUIHubStory key={replayKey} onReplay={() => setReplayKey((k) => k + 1)} />
+    </>
+  );
+}
+
 function Home1() {
   useLenisScroll();
 
   return (
     <>
-      <SparkleCursor />
       <ScrolledHeaderShell />
       <main>
-        <ParallaxStory />
+        <HeroStorySwap />
         <FeaturedMarquee />
         <ShowcaseMarquee />
         <HowTimeline />

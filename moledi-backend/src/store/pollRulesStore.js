@@ -61,7 +61,11 @@ export async function getPollRules(slug) {
     title: poll.title,
     vote_type: poll.vote_type,
     price: {
-      is_paid: poll.vote_type !== "FREE",
+      // vote_type ne vaut jamais littéralement "FREE" (voir l'enum réel :
+      // FREE_VISITOR_ID/FREE_EMAIL/FREE_PHONE/FREE_SMS/FREE_WHATSAPP/PAID/
+      // ADSENSE/UNIQUE_CODE/JURY_WEIGHTED) -- comparer à "FREE" faisait donc
+      // passer TOUT scrutin gratuit pour payant. Seul PAID est réellement payant.
+      is_paid: poll.vote_type === "PAID",
       price_per_vote: poll.price_per_vote,
       vote_packs: poll.vote_packs,
     },

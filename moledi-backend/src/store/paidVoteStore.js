@@ -87,6 +87,12 @@ export async function findTransactionByExternalId(externalTxId) {
  * PAS encore à ce stade — voir creditVotesForTransaction(), appelée
  * uniquement depuis le webhook PSP confirmé.
  */
+// Taux de commission Moledi Events unifié à 10% pour tous les types de
+// campagne (cf. page /tarifs) — appliqué dès l'initiation du paiement pour
+// que le reçu affiche des montants cohérents dès la confirmation, sans
+// attendre une résolution CommissionConfig complète (hors scope MVP).
+const COMMISSION_RATE = 0.10;
+
 export async function createPendingTransaction({
   campaignId,
   visitorId,
@@ -95,21 +101,26 @@ export async function createPendingTransaction({
   aggregatorId,
   operator,
   phoneNumber,
+  countryCode = "CM",
 }) {
   const externalTxId = `ORMO-${crypto.randomBytes(8).toString("hex")}`;
   const correlationId = crypto.randomUUID();
+  const moledi_commission = (Number(grossAmount) * COMMISSION_RATE).toFixed(2);
+  const net_organizer = (Number(grossAmount) - Number(moledi_commission)).toFixed(2);
 
   const { rows } = await pool.query(
     `INSERT INTO transactions
-       (campaign_id, campaign_type, type, visitor_id, gross_amount, status,
+       (campaign_id, campaign_type, type, visitor_id, gross_amount,
+        moledi_commission, net_organizer, status,
         idempotency_key, aggregator_id, external_tx_id, country, payment_method,
         operator, correlation_id, expires_at)
      VALUES
-       ($1, 'POLL', 'VOTE', $2, $3, 'PENDING',
-        $4, $5, $6, 'CM', 'MOBILE_MONEY',
-        $7, $8, now() + interval '${EXPIRATION_MINUTES} minutes')
+       ($1, 'POLL', 'VOTE', $2, $3,
+        $4, $5, 'PENDING',
+        $6, $7, $8, $9, 'MOBILE_MONEY',
+        $10, $11, now() + interval '${EXPIRATION_MINUTES} minutes')
      RETURNING *`,
-    [campaignId, visitorId, grossAmount, idempotencyKey, aggregatorId, externalTxId, operator, correlationId]
+    [campaignId, visitorId, grossAmount, moledi_commission, net_organizer, idempotencyKey, aggregatorId, externalTxId, countryCode, operator, correlationId]
   );
 
   // TODO: remplacer par un vrai appel HTTP à l'API Orange Money (PAY-01),

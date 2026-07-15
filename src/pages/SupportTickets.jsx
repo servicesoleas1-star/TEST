@@ -52,7 +52,7 @@ export default function SupportTicketsPage() {
   return (
     <div className="min-h-screen bg-white">
       <header className="sticky top-0 z-10 px-4 sm:px-8 py-4 flex items-center gap-3 bg-white border-b border-ink-200">
-        <Link to="/organisateur/tableau-de-bord" className="text-secondary">
+        <Link to="/dashboard" className="text-secondary">
           <ArrowLeft size={20} />
         </Link>
         <h1 className="text-lg sm:text-xl font-bold text-ink-900">
@@ -82,7 +82,7 @@ export default function SupportTicketsPage() {
               {tickets.items.map((ticket) => (
                 <Link
                   key={ticket.ticket_id}
-                  to={`/support/tickets/${ticket.ticket_id}`}
+                  to={`/dashboard/support/${ticket.ticket_id}`}
                   className="no-underline"
                 >
                   <div className="rounded-2xl bg-white p-4 sm:p-5 cursor-pointer hover:shadow-md transition border border-ink-200">

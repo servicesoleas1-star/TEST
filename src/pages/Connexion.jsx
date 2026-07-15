@@ -1,7 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { media, illustration } from '../config/media';
+import { setOrganizerSessionEmail } from '../lib/session';
+import { getVisitorId, withVisitorHeader } from '../lib/visitorId';
+
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+
+/**
+ * Charge le script Cloudflare Turnstile une seule fois (partagé si jamais
+ * plusieurs formulaires l'utilisaient), et résout dès que window.turnstile
+ * est disponible.
+ */
+let turnstileScriptPromise = null;
+function loadTurnstileScript() {
+  if (window.turnstile) return Promise.resolve();
+  if (turnstileScriptPromise) return turnstileScriptPromise;
+
+  turnstileScriptPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${TURNSTILE_SCRIPT_SRC}"]`);
+    if (existing) {
+      existing.addEventListener('load', () => resolve());
+      existing.addEventListener('error', reject);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = TURNSTILE_SCRIPT_SRC;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+  return turnstileScriptPromise;
+}
 
 /**
  * Connexion — same split-screen layout, wave divider and Ken-Burns
@@ -12,20 +45,12 @@ import { media, illustration } from '../config/media';
  * product (reset-password flow, /inscription). This page only owns the
  * actual sign-in check against the database.
  *
- * Visitor/session bootstrapping (the anonymous `visitor_id` cookie) is a
- * separate workstream owned by another teammate — this page only *reads*
- * it if already present, to let the backend link the session to the
- * account being logged into; it never creates or manages that cookie.
+ * Visitor/session bootstrapping (the anonymous `visitor_id` cookie) est géré
+ * globalement dès le chargement de l'app (voir main.jsx -> initVisitorId()) ;
+ * cette page lit ce cookie via lib/visitorId.js et lie le visiteur au compte
+ * dès la connexion réussie (associateVisitorWithAccount).
  */
 const slides = [illustration.ticketing, illustration.votes, illustration.crowdfunding, illustration.contests];
-
-function readVisitorId() {
-  try {
-    return localStorage.getItem('moledi_visitor_id') || null;
-  } catch {
-    return null;
-  }
-}
 
 function Connexion() {
   const navigate = useNavigate();
@@ -35,10 +60,57 @@ function Connexion() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState([]);
   const [loading, setLoading] = useState(false);
+  // Honeypot -- filtre gratuit complémentaire (voir moledi-backend/utils/antiBot.js).
+  const [formRenderedAt] = useState(() => Date.now());
+  const [hpField, setHpField] = useState('');
+
+  // Vérification anti-robot réelle : Cloudflare Turnstile analyse l'activité
+  // du navigateur et ne délivre un token qu'après avoir jugé la session
+  // légitime (souvent invisible, parfois une simple coche à cliquer selon
+  // le niveau de confiance). Le token est vérifié côté serveur avant tout
+  // login (voir authController.js -> verifyTurnstileToken).
+  const turnstileContainerRef = useRef(null);
+  const turnstileWidgetIdRef = useRef(null);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileStatus, setTurnstileStatus] = useState(TURNSTILE_SITE_KEY ? 'loading' : 'unconfigured'); // loading | ready | error | unconfigured
 
   useEffect(() => {
     const t = setInterval(() => setSlide((s) => (s + 1) % slides.length), 5500);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY || !turnstileContainerRef.current) return;
+    let cancelled = false;
+
+    loadTurnstileScript()
+      .then(() => {
+        if (cancelled || !turnstileContainerRef.current || !window.turnstile) return;
+        turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
+          sitekey: TURNSTILE_SITE_KEY,
+          callback: (token) => {
+            setTurnstileToken(token);
+            setTurnstileStatus('ready');
+          },
+          'expired-callback': () => {
+            setTurnstileToken('');
+            setTurnstileStatus('loading');
+          },
+          'error-callback': () => {
+            setTurnstileStatus('error');
+          },
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setTurnstileStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+      if (turnstileWidgetIdRef.current && window.turnstile) {
+        window.turnstile.remove(turnstileWidgetIdRef.current);
+      }
+    };
   }, []);
 
   async function handleSubmit(e) {
@@ -50,21 +122,43 @@ function Connexion() {
       return;
     }
 
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setErrors(['Vérification anti-robot en cours, patientez un instant puis réessayez.']);
+      return;
+    }
+
     setLoading(true);
     try {
+      const params = new URLSearchParams(window.location.search);
+      const redirectTo = params.get('redirect_to') || undefined;
+
       const res = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, visitorId: readVisitorId() }),
+        credentials: 'include',
+        headers: withVisitorHeader({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          email,
+          password,
+          visitorId: getVisitorId(),
+          hpField,
+          formRenderedAt,
+          turnstileToken,
+          redirect_to: redirectTo,
+        }),
       });
       const data = await res.json();
 
-      if (!res.ok || !data.ok) {
-        setErrors(data.errors || ["Une erreur est survenue, réessayez."]);
+      if (!res.ok || !data.success) {
+        setErrors([data.error || "Une erreur est survenue, réessayez."]);
+        if (window.turnstile && turnstileWidgetIdRef.current) {
+          window.turnstile.reset(turnstileWidgetIdRef.current);
+          setTurnstileToken('');
+        }
         return;
       }
 
-      window.location.href = data.redirect || '/';
+      setOrganizerSessionEmail(data.email);
+      window.location.href = data.redirect_to || '/';
     } catch {
       setErrors(['Impossible de contacter le serveur. Réessayez.']);
     } finally {
@@ -74,8 +168,13 @@ function Connexion() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-white">
-      {/* Visual column */}
-      <div className="hidden lg:flex relative overflow-hidden bg-ink-900">
+      {/* Visual column -- glides in from the left */}
+      <motion.div
+        initial={{ opacity: 0, x: -60 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        className="hidden lg:flex relative overflow-hidden bg-ink-900"
+      >
         <AnimatePresence mode="sync">
           <motion.div
             key={slide}
@@ -116,10 +215,15 @@ function Connexion() {
             </p>
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Form column */}
-      <div className="flex flex-col min-h-screen">
+      {/* Form column -- glides in from the right */}
+      <motion.div
+        initial={{ opacity: 0, x: 60 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        className="flex flex-col min-h-screen"
+      >
         {/* Mobile header */}
         <header className="flex lg:hidden items-center justify-between px-5 py-4 border-b border-ink-200 sticky top-0 bg-white z-10">
           <img src={media.logo} alt="Moledi Event" className="h-9 w-auto object-contain" />
@@ -158,6 +262,19 @@ function Connexion() {
             )}
 
             <form onSubmit={handleSubmit} noValidate className="space-y-4">
+              {/* Honeypot anti-robot : invisible pour un humain (hors écran,
+                  jamais focusable), quasi systématiquement rempli par les
+                  bots qui remplissent tous les champs d'un formulaire. */}
+              <input
+                type="text"
+                name="website"
+                value={hpField}
+                onChange={(e) => setHpField(e.target.value)}
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
+                className="absolute left-[-9999px] w-px h-px opacity-0"
+              />
               <div>
                 <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-900 mb-2">
                   <i className="fa-solid fa-envelope text-primary text-[11px]" /> Adresse email
@@ -200,9 +317,28 @@ function Connexion() {
                 </div>
               </div>
 
+              {/* Vraie vérification anti-robot (Cloudflare Turnstile) : analyse
+                  l'activité réelle du navigateur, ne se limite pas à une case
+                  qui se coche toute seule. Le widget lui-même décide s'il
+                  reste invisible ou demande une interaction minimale selon le
+                  niveau de confiance -- on ne simule jamais ce résultat. */}
+              {TURNSTILE_SITE_KEY && (
+                <div>
+                  <div ref={turnstileContainerRef} />
+                  {turnstileStatus === 'loading' && (
+                    <p className="text-xs text-ink-700 mt-1.5">Vérification anti-robot en cours…</p>
+                  )}
+                  {turnstileStatus === 'error' && (
+                    <p className="text-xs mt-1.5" style={{ color: '#B42318' }}>
+                      La vérification anti-robot n'a pas pu se charger. Vérifiez votre connexion ou rechargez la page.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (Boolean(TURNSTILE_SITE_KEY) && !turnstileToken)}
                 className="btn btn-primary w-full !rounded-full h-[52px] mt-2 disabled:opacity-60"
               >
                 {loading ? (
@@ -236,7 +372,7 @@ function Connexion() {
             </p>
           </motion.div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
